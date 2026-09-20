@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">RESPONDENT.PRO</string>
+    <string name="footer">RESPONDENT.PRO</string>
+    <string name="settings_title">Настройки</string>
+    <string name="telegram_token">Токен Telegram Bot</string>
+    <string name="telegram_chat_id">Chat ID</string>
+    <string name="org_name">Название организации</string>
+    <string name="greeting">Приветствие</string>
+    <string name="call_to_action">Обращение к клиенту</string>
+    <string name="comment_hint">Текст перед полем отзыва</string>
+    <string name="thank_you_text">Текст благодарности</string>
+    <string name="reset_timeout">Таймер сброса (сек)</string>
+    <string name="btn_start">Старт</string>
+    <string name="btn_done">Готово</string>
+    <string name="btn_send">Отправить</string>
+    <string name="btn_no_comment">Без комментария</string>
+    <string name="pin_hint">Введите PIN для доступа к настройкам</string>
+</resources>
