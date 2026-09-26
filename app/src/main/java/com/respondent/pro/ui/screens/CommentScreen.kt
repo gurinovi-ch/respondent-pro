@@ -55,6 +55,7 @@ fun CommentScreen(
             Text(
                 text = settings.commentHint.ifEmpty { "Ваш комментарий (отзыв) к оценке" },
                 fontSize = 32.sp,
+                lineHeight = 64.sp,
                 color = TextPrimary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
@@ -146,31 +147,33 @@ fun CommentScreen(
                     .wrapContentHeight()
             )
 
-            // Buttons — 50% ширины экрана, высота ×2 (80dp), по центру
+            // Buttons — 40% ширины экрана, высота 56dp, отступы 28dp (50% высоты кнопки)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp),
+                    .padding(top = 28.dp),
                 horizontalArrangement = Arrangement.Center
             ) {
                 if (comment.isEmpty()) {
                     OutlinedButton(
                         onClick = onNoComment,
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .width(screenWidth * 0.5f)
-                            .height(80.dp),
+                            .width(screenWidth * 0.4f)
+                            .height(56.dp),
                         enabled = !isSending
                     ) {
-                        Text("Без комментария")
+                        Text("Без комментария", fontSize = 42.sp)
                     }
                 } else {
                     Button(
                         onClick = {
                             viewModel.sendFeedback(rating, startedAt) { onSend() }
                         },
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 0.dp),
                         modifier = Modifier
-                            .width(screenWidth * 0.5f)
-                            .height(80.dp),
+                            .width(screenWidth * 0.4f)
+                            .height(56.dp),
                         enabled = !isSending
                     ) {
                         if (isSending) {
@@ -179,7 +182,7 @@ fun CommentScreen(
                                 strokeWidth = 2.dp
                             )
                         } else {
-                            Text("Отправить")
+                            Text("Отправить", fontSize = 42.sp)
                         }
                     }
                 }
@@ -190,7 +193,7 @@ fun CommentScreen(
                 timeoutSeconds = 60,
                 resetTrigger = timerKey,
                 onTimeout = { onAutoReset() },
-                modifier = Modifier.padding(top = 4.dp)
+                modifier = Modifier.padding(top = 28.dp)
             )
         }
 

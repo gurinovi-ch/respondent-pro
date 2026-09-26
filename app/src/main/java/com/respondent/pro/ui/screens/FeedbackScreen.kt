@@ -72,7 +72,8 @@ fun FeedbackScreen(
                 // Call to action
                 Text(
                     text = settings.callToAction.ifEmpty { "Пожалуйста оцените наши услуги" },
-                    fontSize = 36.sp,
+                    fontSize = 54.sp,
+                    lineHeight = 108.sp,
                     color = TextPrimary,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
@@ -92,11 +93,12 @@ fun FeedbackScreen(
                 androidx.compose.material3.Button(
                     onClick = { onRatingDone(rating) },
                     enabled = rating > 0,
+                    contentPadding = PaddingValues(horizontal = 24.dp, vertical = 0.dp),
                     modifier = Modifier
                         .fillMaxWidth(0.5f)
                         .height(56.dp)
                 ) {
-                    Text("Готово", fontSize = 18.sp)
+                    Text("Готово", fontSize = 36.sp)
                 }
             }
         }
