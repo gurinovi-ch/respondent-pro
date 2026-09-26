@@ -39,6 +39,7 @@ fun CommentScreen(
     var editTextRef by remember { mutableStateOf<EditText?>(null) }
 
     val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp.dp
     val screenHeight = configuration.screenHeightDp.dp
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val keyboardMaxHeight = if (isLandscape) screenHeight * 0.50f else screenHeight * 0.25f
@@ -53,10 +54,12 @@ fun CommentScreen(
             // Comment hint from settings
             Text(
                 text = settings.commentHint.ifEmpty { "Ваш комментарий (отзыв) к оценке" },
-                fontSize = 16.sp,
+                fontSize = 32.sp,
                 color = TextPrimary,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier
+                    .width(screenWidth * 0.8f)
+                    .padding(bottom = 8.dp)
             )
 
             // EditText for keyboard input - takes remaining space
@@ -90,7 +93,7 @@ fun CommentScreen(
                     }
                 },
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .width(screenWidth * 0.8f)
                     .weight(1f)
                     .padding(bottom = 4.dp)
             )
@@ -143,17 +146,19 @@ fun CommentScreen(
                     .wrapContentHeight()
             )
 
-            // Buttons
+            // Buttons — 50% ширины экрана, высота ×2 (80dp), по центру
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.Center
             ) {
                 if (comment.isEmpty()) {
                     OutlinedButton(
                         onClick = onNoComment,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .width(screenWidth * 0.5f)
+                            .height(80.dp),
                         enabled = !isSending
                     ) {
                         Text("Без комментария")
@@ -163,7 +168,9 @@ fun CommentScreen(
                         onClick = {
                             viewModel.sendFeedback(rating, startedAt) { onSend() }
                         },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .width(screenWidth * 0.5f)
+                            .height(80.dp),
                         enabled = !isSending
                     ) {
                         if (isSending) {

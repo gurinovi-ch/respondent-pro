@@ -32,82 +32,95 @@ fun FeedbackScreen(
     var timerKey by remember { mutableStateOf(0) }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        // Блок оценки — центр экрана по вертикали и горизонтали, ширина 80%
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(32.dp),
+            modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Organization name (long press for settings)
-            Text(
-                text = settings.orgName.ifEmpty { "ORGANIZATION" },
-                fontSize = 14.sp,
-                color = TextSecondary,
-                modifier = Modifier.combinedClickable(
-                    onClick = {},
-                    onLongClick = { viewModel.showPin() }
-                )
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Greeting
-            Text(
-                text = settings.greeting,
-                fontSize = 14.sp,
-                color = TextSecondary,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Call to action
-            Text(
-                text = settings.callToAction.ifEmpty { "Пожалуйста оцените наши услуги" },
-                fontSize = 24.sp,
-                color = TextPrimary,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Star rating
-            StarRating(
-                rating = rating,
-                onRatingChanged = { viewModel.setRating(it); timerKey++ }
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Done button
-            androidx.compose.material3.Button(
-                onClick = { onRatingDone(rating) },
-                enabled = rating > 0,
-                modifier = Modifier
-                    .width(200.dp)
-                    .height(56.dp)
+            Column(
+                modifier = Modifier.fillMaxWidth(0.8f),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Готово", fontSize = 18.sp)
+                // Organization name (long press for settings)
+                Text(
+                    text = settings.orgName.ifEmpty { "ORGANIZATION" },
+                    fontSize = 21.sp,
+                    color = TextSecondary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .combinedClickable(
+                            onClick = {},
+                            onLongClick = { viewModel.showPin() }
+                        )
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Greeting
+                Text(
+                    text = settings.greeting,
+                    fontSize = 21.sp,
+                    color = TextSecondary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Call to action
+                Text(
+                    text = settings.callToAction.ifEmpty { "Пожалуйста оцените наши услуги" },
+                    fontSize = 36.sp,
+                    color = TextPrimary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // Star rating — 80% ширины экрана, волна до выбора оценки
+                StarRating(
+                    rating = rating,
+                    onRatingChanged = { viewModel.setRating(it); timerKey++ }
+                )
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // Done button — 40% ширины экрана (0.5 от блока 80%)
+                androidx.compose.material3.Button(
+                    onClick = { onRatingDone(rating) },
+                    enabled = rating > 0,
+                    modifier = Modifier
+                        .fillMaxWidth(0.5f)
+                        .height(56.dp)
+                ) {
+                    Text("Готово", fontSize = 18.sp)
+                }
             }
+        }
 
-            Spacer(modifier = Modifier.weight(1f))
-
-            // Footer
+        // Футер и таймер — у нижнего края экрана
+        Column(
+            modifier = Modifier.align(Alignment.BottomCenter),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             Text(
                 text = "RESPONDENT.PRO",
                 fontSize = 12.sp,
                 color = FooterColor
             )
-        }
 
-        // Auto-reset timer
-        AutoResetTimer(
-            timeoutSeconds = settings.resetTimeout,
-            resetTrigger = timerKey,
-            onTimeout = { onAutoReset() },
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Auto-reset timer
+            AutoResetTimer(
+                timeoutSeconds = settings.resetTimeout,
+                resetTrigger = timerKey,
+                onTimeout = { onAutoReset() }
+            )
+        }
 
         // PIN dialog
         if (showPinDialog) {

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.RespondentPro" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:statusBarColor">#FF1976D2</item>
-        <item name="android:navigationBarColor">#FF1976D2</item>
+        <item name="android:statusBarColor">#FF178776</item>
+        <item name="android:navigationBarColor">#FF178776</item>
     </style>
 </resources>
