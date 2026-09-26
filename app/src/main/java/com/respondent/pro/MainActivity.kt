@@ -6,22 +6,39 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import com.respondent.pro.data.repository.AppSettings
+import com.respondent.pro.data.repository.SettingsRepository
+import com.respondent.pro.ui.i18n.LocalAppStrings
+import com.respondent.pro.ui.i18n.appStringsFor
 import com.respondent.pro.ui.navigation.NavGraph
 import com.respondent.pro.ui.theme.RespondentProTheme
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    @Inject
+    lateinit var settingsRepository: SettingsRepository
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
+            val appSettings by settingsRepository.settings.collectAsState(initial = AppSettings())
             RespondentProTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                // Язык интерфейса применяется мгновенно при выборе в настройках
+                CompositionLocalProvider(
+                    LocalAppStrings provides appStringsFor(appSettings.language)
                 ) {
-                    NavGraph()
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background
+                    ) {
+                        NavGraph()
+                    }
                 }
             }
         }

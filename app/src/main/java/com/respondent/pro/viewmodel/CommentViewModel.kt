@@ -13,6 +13,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * Ошибка отправки без текста: тип хранится в ViewModel,
+ * перевод подбирается на экране по текущему языку интерфейса.
+ */
+sealed interface SendError {
+    data class SaveFailed(val detail: String?) : SendError
+    data class NavigationFailed(val detail: String?) : SendError
+}
+
 @HiltViewModel
 class CommentViewModel @Inject constructor(
     private val feedbackRepository: FeedbackRepository,
@@ -28,8 +37,8 @@ class CommentViewModel @Inject constructor(
     private val _sendSuccess = MutableStateFlow(false)
     val sendSuccess: StateFlow<Boolean> = _sendSuccess
 
-    private val _errorMessage = MutableStateFlow<String?>(null)
-    val errorMessage: StateFlow<String?> = _errorMessage
+    private val _sendError = MutableStateFlow<SendError?>(null)
+    val sendError: StateFlow<SendError?> = _sendError
 
     fun updateComment(text: String) {
         if (text.length <= 500) {
@@ -40,7 +49,7 @@ class CommentViewModel @Inject constructor(
     fun sendFeedback(rating: Int, startedAt: Long, onComplete: () -> Unit) {
         viewModelScope.launch {
             _isSending.value = true
-            _errorMessage.value = null
+            _sendError.value = null
             try {
                 val id = feedbackRepository.save(
                     Feedback(
@@ -73,7 +82,7 @@ class CommentViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 Log.e("CommentViewModel", "Error saving feedback", e)
-                _errorMessage.value = "Ошибка сохранения: ${e.message}"
+                _sendError.value = SendError.SaveFailed(e.message)
                 _isSending.value = false
                 return@launch
             } finally {
@@ -86,7 +95,7 @@ class CommentViewModel @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 Log.e("CommentViewModel", "Error in onComplete navigation", e)
-                _errorMessage.value = "Ошибка навигации: ${e.message}"
+                _sendError.value = SendError.NavigationFailed(e.message)
             }
         }
     }
@@ -96,6 +105,6 @@ class CommentViewModel @Inject constructor(
     fun reset() {
         _comment.value = ""
         _sendSuccess.value = false
-        _errorMessage.value = null
+        _sendError.value = null
     }
 }

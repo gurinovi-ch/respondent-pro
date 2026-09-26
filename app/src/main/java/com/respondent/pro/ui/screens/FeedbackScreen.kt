@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.sp
 import com.respondent.pro.ui.components.AutoResetTimer
 import com.respondent.pro.ui.components.PinInput
 import com.respondent.pro.ui.components.StarRating
+import com.respondent.pro.ui.i18n.LocalAppStrings
 import com.respondent.pro.ui.theme.FooterColor
 import com.respondent.pro.ui.theme.TextPrimary
 import com.respondent.pro.ui.theme.TextSecondary
@@ -29,6 +30,7 @@ fun FeedbackScreen(
     val settings by viewModel.settings.collectAsState()
     val rating by viewModel.rating.collectAsState()
     val showPinDialog by viewModel.showPinDialog.collectAsState()
+    val strings = LocalAppStrings.current
     var timerKey by remember { mutableStateOf(0) }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -71,7 +73,7 @@ fun FeedbackScreen(
 
                 // Call to action
                 Text(
-                    text = settings.callToAction.ifEmpty { "Пожалуйста оцените наши услуги" },
+                    text = settings.callToAction.ifEmpty { strings.defaultCallToAction },
                     fontSize = 54.sp,
                     lineHeight = 54.sp,
                     color = TextPrimary,
@@ -98,7 +100,7 @@ fun FeedbackScreen(
                         .fillMaxWidth(0.5f)
                         .height(56.dp)
                 ) {
-                    Text("Готово", fontSize = 25.sp)
+                    Text(strings.btnDone, fontSize = 25.sp)
                 }
             }
         }
@@ -130,7 +132,7 @@ fun FeedbackScreen(
 
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { viewModel.hidePin(); pinError = false },
-                title = { Text("Введите PIN") },
+                title = { Text(strings.pinDialogTitle) },
                 text = {
                     PinInput(
                         pin = "",
@@ -152,7 +154,7 @@ fun FeedbackScreen(
                     androidx.compose.material3.TextButton(
                         onClick = { viewModel.hidePin(); pinError = false }
                     ) {
-                        Text("Отмена")
+                        Text(strings.btnCancel)
                     }
                 }
             )

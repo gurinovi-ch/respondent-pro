@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.respondent.pro.data.repository.AppSettings
 import com.respondent.pro.ui.components.AutoResetTimer
+import com.respondent.pro.ui.i18n.LocalAppStrings
 import com.respondent.pro.ui.theme.Primary
 import kotlinx.coroutines.delay
 
@@ -26,6 +27,7 @@ fun ThankYouScreen(
     onClose: () -> Unit = {}
 ) {
     var timerKey by remember { mutableIntStateOf(0) }
+    val strings = LocalAppStrings.current
 
     Box(modifier = Modifier.fillMaxSize()) {
         // Close button (X) - top right
@@ -53,7 +55,7 @@ fun ThankYouScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = settings.thankYouText,
+                text = settings.thankYouText.ifEmpty { strings.defaultThankYou },
                 fontSize = 24.sp,
                 color = Color(0xFF4CAF50),
                 textAlign = TextAlign.Center

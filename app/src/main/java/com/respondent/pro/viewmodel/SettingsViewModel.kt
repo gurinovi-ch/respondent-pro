@@ -29,4 +29,11 @@ class SettingsViewModel @Inject constructor(
             settingsRepository.save(settings)
         }
     }
+
+    /** Мгновенная запись только языка — без сохранения остальных полей формы. */
+    fun setLanguage(language: String) {
+        viewModelScope.launch {
+            settingsRepository.saveLanguage(language)
+        }
+    }
 }

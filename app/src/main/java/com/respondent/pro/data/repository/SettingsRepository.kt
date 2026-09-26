@@ -20,9 +20,12 @@ data class AppSettings(
     val greeting: String = "",
     val callToAction: String = "",
     val commentHint: String = "",
-    val thankYouText: String = "Спасибо за ваш отзыв!",
+    // Пусто по умолчанию: на экране показывается локализованный дефолт
+    val thankYouText: String = "",
     val resetTimeout: Int = 60,
-    val sendIncomplete: Boolean = false
+    val sendIncomplete: Boolean = false,
+    /** Код языка интерфейса: "ru" | "en". */
+    val language: String = "ru"
 )
 
 @Singleton
@@ -40,6 +43,7 @@ class SettingsRepository @Inject constructor(
         val THANK_YOU_TEXT = stringPreferencesKey("thank_you_text")
         val RESET_TIMEOUT = intPreferencesKey("reset_timeout")
         val SEND_INCOMPLETE = booleanPreferencesKey("send_incomplete")
+        val LANGUAGE = stringPreferencesKey("language")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -51,9 +55,10 @@ class SettingsRepository @Inject constructor(
             greeting = prefs[Keys.GREETING] ?: "",
             callToAction = prefs[Keys.CALL_TO_ACTION] ?: "",
             commentHint = prefs[Keys.COMMENT_HINT] ?: "",
-            thankYouText = prefs[Keys.THANK_YOU_TEXT] ?: "Спасибо за ваш отзыв!",
+            thankYouText = prefs[Keys.THANK_YOU_TEXT] ?: "",
             resetTimeout = prefs[Keys.RESET_TIMEOUT] ?: 60,
-            sendIncomplete = prefs[Keys.SEND_INCOMPLETE] ?: false
+            sendIncomplete = prefs[Keys.SEND_INCOMPLETE] ?: false,
+            language = prefs[Keys.LANGUAGE] ?: "ru"
         )
     }
 
@@ -69,6 +74,17 @@ class SettingsRepository @Inject constructor(
             prefs[Keys.THANK_YOU_TEXT] = settings.thankYouText
             prefs[Keys.RESET_TIMEOUT] = settings.resetTimeout
             prefs[Keys.SEND_INCOMPLETE] = settings.sendIncomplete
+            prefs[Keys.LANGUAGE] = settings.language
+        }
+    }
+
+    /**
+     * Записывает только язык — мгновенно, не дожидаясь «Старт»
+     * и не трогая остальные (возможно, несохранённые) поля формы.
+     */
+    suspend fun saveLanguage(language: String) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.LANGUAGE] = language
         }
     }
 }

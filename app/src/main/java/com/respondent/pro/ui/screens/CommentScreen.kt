@@ -17,8 +17,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.respondent.pro.data.repository.AppSettings
 import com.respondent.pro.ui.components.AutoResetTimer
+import com.respondent.pro.ui.i18n.LocalAppStrings
 import com.respondent.pro.ui.theme.TextPrimary
 import com.respondent.pro.viewmodel.CommentViewModel
+import com.respondent.pro.viewmodel.SendError
 import com.respondent.pro.views.KeyboardView
 
 @Composable
@@ -34,7 +36,8 @@ fun CommentScreen(
 ) {
     val comment by viewModel.comment.collectAsState()
     val isSending by viewModel.isSending.collectAsState()
-    val errorMessage by viewModel.errorMessage.collectAsState()
+    val sendError by viewModel.sendError.collectAsState()
+    val strings = LocalAppStrings.current
     var timerKey by remember { mutableIntStateOf(0) }
     var editTextRef by remember { mutableStateOf<EditText?>(null) }
 
@@ -53,7 +56,7 @@ fun CommentScreen(
         ) {
             // Comment hint from settings
             Text(
-                text = settings.commentHint.ifEmpty { "Ваш комментарий (отзыв) к оценке" },
+                text = settings.commentHint.ifEmpty { strings.defaultCommentHint },
                 fontSize = 32.sp,
                 lineHeight = 32.sp,
                 color = TextPrimary,
@@ -67,7 +70,7 @@ fun CommentScreen(
             AndroidView(
                 factory = { context ->
                     EditText(context).apply {
-                        hint = "Ваш отзыв..."
+                        hint = strings.editTextHint
                         textSize = 25.2f
                         maxLines = 8
                         minLines = 4
@@ -111,9 +114,14 @@ fun CommentScreen(
             )
 
             // Error message display
-            errorMessage?.let { error ->
+            sendError?.let { error ->
                 Text(
-                    text = error,
+                    text = when (error) {
+                        is SendError.SaveFailed ->
+                            strings.errorSavePattern.replace("%s", error.detail ?: "")
+                        is SendError.NavigationFailed ->
+                            strings.errorNavPattern.replace("%s", error.detail ?: "")
+                    },
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.error,
                     textAlign = TextAlign.Center,
@@ -127,6 +135,11 @@ fun CommentScreen(
             AndroidView(
                 factory = { context ->
                     KeyboardView(context).apply {
+                        // Раскладка клавиатуры — по выбранному языку интерфейса
+                        setLayout(
+                            if (settings.language == "en") KeyboardView.LAYOUT_ENG
+                            else KeyboardView.LAYOUT_RUS
+                        )
                         post {
                             editTextRef?.let { setInputText(it) }
                         }
@@ -163,7 +176,7 @@ fun CommentScreen(
                             .height(56.dp),
                         enabled = !isSending
                     ) {
-                        Text("Без комментария", fontSize = 29.sp)
+                        Text(strings.btnNoComment, fontSize = 29.sp)
                     }
                 } else {
                     Button(
@@ -182,7 +195,7 @@ fun CommentScreen(
                                 strokeWidth = 2.dp
                             )
                         } else {
-                            Text("Отправить", fontSize = 29.sp)
+                            Text(strings.btnSend, fontSize = 29.sp)
                         }
                     }
                 }
