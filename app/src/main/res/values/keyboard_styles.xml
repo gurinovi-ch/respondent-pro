@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Keyboard styles -->
+    <style name="keyboard_row">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:divider">@drawable/keyboard_divider</item>
+        <item name="android:gravity">center</item>
+        <item name="android:showDividers">beginning|middle|end</item>
+    </style>
+
+    <style name="keyboard_button">
+        <item name="android:layout_margin">2dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:gravity">center</item>
+        <item name="android:background">@drawable/keyboard_button_bg</item>
+        <item name="android:textColor">@color/material_gray_900</item>
+        <item name="android:textSize">@dimen/kb_btn_btn_size</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:minHeight">0dp</item>
+        <item name="android:padding">2dp</item>
+    </style>
+
+    <style name="keyboard_system_button" parent="keyboard_button">
+        <item name="android:background">@drawable/keyboard_button_system_bg</item>
+        <item name="android:textColor">@android:color/white</item>
+        <item name="android:textSize">@dimen/kb_btn_system_size</item>
+    </style>
+
+    <!-- NB: android:tag="letter_button" is how KeyboardView detects a character key -->
+    <style name="keyboard_text_button" parent="keyboard_button">
+        <item name="android:paddingTop">2dp</item>
+        <item name="android:tag">letter_button</item>
+    </style>
+</resources>

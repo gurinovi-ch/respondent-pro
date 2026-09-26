@@ -15,4 +15,5 @@
     <string name="btn_send">Отправить</string>
     <string name="btn_no_comment">Без комментария</string>
     <string name="pin_hint">Введите PIN для доступа к настройкам</string>
+    <string name="send_incomplete">Отправлять незавершённый отзыв</string>
 </resources>

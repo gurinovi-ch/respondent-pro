@@ -26,7 +26,7 @@ import com.respondent.pro.ui.theme.TextSecondary
 fun PinInput(
     pin: String,
     onPinChanged: (String) -> Unit,
-    onSubmit: () -> Unit,
+    onSubmit: (String) -> Unit,
     error: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -46,12 +46,12 @@ fun PinInput(
 
         BasicTextField(
             value = input,
-            onValueChanged = { newValue ->
+            onValueChange = { newValue ->
                 if (newValue.length <= 4 && newValue.all { it.isDigit() }) {
                     input = newValue
                     onPinChanged(newValue)
                     if (newValue.length == 4) {
-                        onSubmit()
+                        onSubmit(newValue)
                     }
                 }
             },

@@ -116,6 +116,18 @@ fun SettingsScreen(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
         )
 
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("Отправлять незавершённый отзыв")
+            Switch(
+                checked = localSettings.sendIncomplete,
+                onCheckedChange = { localSettings = localSettings.copy(sendIncomplete = it) }
+            )
+        }
+
         Button(
             onClick = {
                 context.startActivity(Intent(Settings.ACTION_SETTINGS))

@@ -1,10 +1,13 @@
 package com.respondent.pro.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.respondent.pro.data.model.Feedback
+import com.respondent.pro.data.remote.TelegramSender
 import com.respondent.pro.data.repository.FeedbackRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -12,7 +15,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class CommentViewModel @Inject constructor(
-    private val feedbackRepository: FeedbackRepository
+    private val feedbackRepository: FeedbackRepository,
+    private val telegramSender: TelegramSender
 ) : ViewModel() {
 
     private val _comment = MutableStateFlow("")
@@ -24,33 +28,74 @@ class CommentViewModel @Inject constructor(
     private val _sendSuccess = MutableStateFlow(false)
     val sendSuccess: StateFlow<Boolean> = _sendSuccess
 
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage: StateFlow<String?> = _errorMessage
+
     fun updateComment(text: String) {
         if (text.length <= 500) {
             _comment.value = text
         }
     }
 
-    fun sendFeedback(rating: Int, onComplete: () -> Unit) {
+    fun sendFeedback(rating: Int, startedAt: Long, onComplete: () -> Unit) {
         viewModelScope.launch {
             _isSending.value = true
+            _errorMessage.value = null
             try {
-                feedbackRepository.save(
+                val id = feedbackRepository.save(
                     Feedback(
                         rating = rating,
-                        text = _comment.value
+                        text = _comment.value,
+                        startedAt = startedAt,
+                        isComplete = true
                     )
                 )
+                Log.d("CommentViewModel", "Feedback saved to DB, id=$id")
+
+                // Try to send to Telegram immediately
+                val savedFeedback = Feedback(
+                    id = id,
+                    rating = rating,
+                    text = _comment.value,
+                    startedAt = startedAt,
+                    isComplete = true
+                )
+                val sent = telegramSender.send(savedFeedback)
+                if (!sent) {
+                    Log.w("CommentViewModel", "Feedback saved but NOT sent to Telegram")
+                } else {
+                    Log.d("CommentViewModel", "Feedback saved AND sent to Telegram ✓")
+                }
+
                 _sendSuccess.value = true
                 _comment.value = ""
-                onComplete()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("CommentViewModel", "Error saving feedback", e)
+                _errorMessage.value = "Ошибка сохранения: ${e.message}"
+                _isSending.value = false
+                return@launch
             } finally {
                 _isSending.value = false
+            }
+            // Call onComplete OUTSIDE try-catch so navigation exceptions don't interfere
+            try {
+                onComplete()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("CommentViewModel", "Error in onComplete navigation", e)
+                _errorMessage.value = "Ошибка навигации: ${e.message}"
             }
         }
     }
 
+    fun getComment(): String = _comment.value
+
     fun reset() {
         _comment.value = ""
         _sendSuccess.value = false
+        _errorMessage.value = null
     }
 }

@@ -21,7 +21,8 @@ data class AppSettings(
     val callToAction: String = "",
     val commentHint: String = "",
     val thankYouText: String = "Спасибо за ваш отзыв!",
-    val resetTimeout: Int = 60
+    val resetTimeout: Int = 60,
+    val sendIncomplete: Boolean = false
 )
 
 @Singleton
@@ -38,6 +39,7 @@ class SettingsRepository @Inject constructor(
         val COMMENT_HINT = stringPreferencesKey("comment_hint")
         val THANK_YOU_TEXT = stringPreferencesKey("thank_you_text")
         val RESET_TIMEOUT = intPreferencesKey("reset_timeout")
+        val SEND_INCOMPLETE = booleanPreferencesKey("send_incomplete")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -50,7 +52,8 @@ class SettingsRepository @Inject constructor(
             callToAction = prefs[Keys.CALL_TO_ACTION] ?: "",
             commentHint = prefs[Keys.COMMENT_HINT] ?: "",
             thankYouText = prefs[Keys.THANK_YOU_TEXT] ?: "Спасибо за ваш отзыв!",
-            resetTimeout = prefs[Keys.RESET_TIMEOUT] ?: 60
+            resetTimeout = prefs[Keys.RESET_TIMEOUT] ?: 60,
+            sendIncomplete = prefs[Keys.SEND_INCOMPLETE] ?: false
         )
     }
 
@@ -65,6 +68,7 @@ class SettingsRepository @Inject constructor(
             prefs[Keys.COMMENT_HINT] = settings.commentHint
             prefs[Keys.THANK_YOU_TEXT] = settings.thankYouText
             prefs[Keys.RESET_TIMEOUT] = settings.resetTimeout
+            prefs[Keys.SEND_INCOMPLETE] = settings.sendIncomplete
         }
     }
 }

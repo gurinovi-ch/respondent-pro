@@ -1,8 +1,10 @@
 package com.respondent.pro.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.respondent.pro.data.model.Feedback
+import com.respondent.pro.data.remote.TelegramSender
 import com.respondent.pro.data.repository.FeedbackRepository
 import com.respondent.pro.data.repository.SettingsRepository
 import com.respondent.pro.data.repository.AppSettings
@@ -16,7 +18,8 @@ import javax.inject.Inject
 @HiltViewModel
 class FeedbackViewModel @Inject constructor(
     private val feedbackRepository: FeedbackRepository,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val telegramSender: TelegramSender
 ) : ViewModel() {
 
     private val _rating = MutableStateFlow(0)
@@ -28,14 +31,33 @@ class FeedbackViewModel @Inject constructor(
     private val _settings = MutableStateFlow(AppSettings())
     val settings: StateFlow<AppSettings> = _settings
 
+    private var startedAt: Long = 0L
+    private var hasStartedRating = false
+
     init {
         viewModelScope.launch {
             settingsRepository.settings.collect { _settings.value = it }
+        }
+        // Retry sending unsent feedbacks on startup (delayed to let DataStore load)
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(3000) // Wait for DataStore to load
+            try {
+                val sent = telegramSender.sendUnsent()
+                if (sent > 0) {
+                    Log.d("FeedbackViewModel", "Retry: sent $sent unsent feedbacks")
+                }
+            } catch (e: Exception) {
+                Log.e("FeedbackViewModel", "Error retrying unsent feedbacks", e)
+            }
         }
     }
 
     fun setRating(value: Int) {
         _rating.value = value
+        if (!hasStartedRating) {
+            startedAt = System.currentTimeMillis()
+            hasStartedRating = true
+        }
     }
 
     fun showPin() {
@@ -55,7 +77,43 @@ class FeedbackViewModel @Inject constructor(
         return false
     }
 
-    fun resetRating() {
+    fun resetAll() {
         _rating.value = 0
+        startedAt = 0L
+        hasStartedRating = false
+        _showPinDialog.value = false
     }
+
+    fun saveIncompleteFeedback(text: String = "") {
+        val currentRating = _rating.value
+        if (currentRating > 0) {
+            viewModelScope.launch {
+                try {
+                    val id = feedbackRepository.save(
+                        Feedback(
+                            rating = currentRating,
+                            text = text,
+                            startedAt = startedAt,
+                            createdAt = System.currentTimeMillis(),
+                            isComplete = false
+                        )
+                    )
+                    // Try to send incomplete feedback too
+                    val savedFeedback = Feedback(
+                        id = id,
+                        rating = currentRating,
+                        text = text,
+                        startedAt = startedAt,
+                        isComplete = false
+                    )
+                    telegramSender.send(savedFeedback)
+                } catch (e: Exception) {
+                    Log.e("FeedbackViewModel", "Error saving incomplete feedback", e)
+                }
+            }
+        }
+        resetAll()
+    }
+
+    fun getStartedAt(): Long = startedAt
 }

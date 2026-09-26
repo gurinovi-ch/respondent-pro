@@ -22,7 +22,9 @@ import com.respondent.pro.viewmodel.FeedbackViewModel
 @Composable
 fun FeedbackScreen(
     viewModel: FeedbackViewModel,
-    onRatingDone: (Int) -> Unit
+    onRatingDone: (Int) -> Unit,
+    onSettings: () -> Unit = {},
+    onAutoReset: () -> Unit = {}
 ) {
     val settings by viewModel.settings.collectAsState()
     val rating by viewModel.rating.collectAsState()
@@ -103,27 +105,37 @@ fun FeedbackScreen(
         AutoResetTimer(
             timeoutSeconds = settings.resetTimeout,
             resetTrigger = timerKey,
-            onTimeout = { viewModel.resetRating(); timerKey++ },
+            onTimeout = { onAutoReset() },
             modifier = Modifier.align(Alignment.BottomCenter)
         )
 
         // PIN dialog
         if (showPinDialog) {
+            var pinError by remember { mutableStateOf(false) }
+
             androidx.compose.material3.AlertDialog(
-                onDismissRequest = { viewModel.hidePin() },
+                onDismissRequest = { viewModel.hidePin(); pinError = false },
                 title = { Text("Введите PIN") },
                 text = {
                     PinInput(
                         pin = "",
-                        onPinChanged = {},
-                        onSubmit = { /* handled in verifyPin */ },
+                        onPinChanged = { pinError = false },
+                        onSubmit = { pin ->
+                            if (viewModel.verifyPin(pin)) {
+                                pinError = false
+                                onSettings()
+                            } else {
+                                pinError = true
+                            }
+                        },
+                        error = pinError,
                         modifier = Modifier.fillMaxWidth()
                     )
                 },
                 confirmButton = {},
                 dismissButton = {
                     androidx.compose.material3.TextButton(
-                        onClick = { viewModel.hidePin() }
+                        onClick = { viewModel.hidePin(); pinError = false }
                     ) {
                         Text("Отмена")
                     }

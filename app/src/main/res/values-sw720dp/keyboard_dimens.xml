@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tablet 10" (portrait) -->
+    <dimen name="kb_max_height">300dp</dimen>
+    <dimen name="kb_row_height">75dp</dimen>
+    <dimen name="kb_general_padding">4dp</dimen>
+    <dimen name="kb_btn_text_size">26sp</dimen>
+    <dimen name="kb_btn_btn_size">28dp</dimen>
+    <dimen name="kb_btn_system_size">22sp</dimen>
+    <dimen name="kb_btn_lang_size">18sp</dimen>
+</resources>

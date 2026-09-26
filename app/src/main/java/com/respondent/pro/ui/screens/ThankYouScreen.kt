@@ -14,25 +14,23 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.respondent.pro.data.repository.AppSettings
+import com.respondent.pro.ui.components.AutoResetTimer
 import com.respondent.pro.ui.theme.Primary
 import kotlinx.coroutines.delay
 
 @Composable
 fun ThankYouScreen(
     settings: AppSettings,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onAutoReset: () -> Unit = {},
+    onClose: () -> Unit = {}
 ) {
-    var visible by remember { mutableStateOf(true) }
-
-    LaunchedEffect(Unit) {
-        delay(settings.resetTimeout.toLong() * 1000)
-        onDismiss()
-    }
+    var timerKey by remember { mutableIntStateOf(0) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Close button
+        // Close button (X) - top right
         IconButton(
-            onClick = onDismiss,
+            onClick = onClose,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(16.dp)
@@ -61,5 +59,13 @@ fun ThankYouScreen(
                 textAlign = TextAlign.Center
             )
         }
+
+        // Auto-reset timer
+        AutoResetTimer(
+            timeoutSeconds = settings.resetTimeout,
+            resetTrigger = timerKey,
+            onTimeout = { onAutoReset() },
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 }

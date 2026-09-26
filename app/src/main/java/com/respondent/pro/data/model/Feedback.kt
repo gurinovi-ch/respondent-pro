@@ -9,6 +9,8 @@ data class Feedback(
     val rating: Int,
     val text: String,
     val createdAt: Long = System.currentTimeMillis(),
+    val startedAt: Long = System.currentTimeMillis(),
     val sentToTelegram: Boolean = false,
+    val isComplete: Boolean = true,
     val errorMessage: String? = null
 )
