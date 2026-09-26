@@ -55,7 +55,7 @@ fun CommentScreen(
             Text(
                 text = settings.commentHint.ifEmpty { "Ваш комментарий (отзыв) к оценке" },
                 fontSize = 32.sp,
-                lineHeight = 64.sp,
+                lineHeight = 32.sp,
                 color = TextPrimary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
@@ -163,7 +163,7 @@ fun CommentScreen(
                             .height(56.dp),
                         enabled = !isSending
                     ) {
-                        Text("Без комментария", fontSize = 42.sp)
+                        Text("Без комментария", fontSize = 29.sp)
                     }
                 } else {
                     Button(
@@ -182,7 +182,7 @@ fun CommentScreen(
                                 strokeWidth = 2.dp
                             )
                         } else {
-                            Text("Отправить", fontSize = 42.sp)
+                            Text("Отправить", fontSize = 29.sp)
                         }
                     }
                 }

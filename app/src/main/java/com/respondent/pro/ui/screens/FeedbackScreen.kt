@@ -73,7 +73,7 @@ fun FeedbackScreen(
                 Text(
                     text = settings.callToAction.ifEmpty { "Пожалуйста оцените наши услуги" },
                     fontSize = 54.sp,
-                    lineHeight = 108.sp,
+                    lineHeight = 54.sp,
                     color = TextPrimary,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
@@ -98,7 +98,7 @@ fun FeedbackScreen(
                         .fillMaxWidth(0.5f)
                         .height(56.dp)
                 ) {
-                    Text("Готово", fontSize = 36.sp)
+                    Text("Готово", fontSize = 25.sp)
                 }
             }
         }
