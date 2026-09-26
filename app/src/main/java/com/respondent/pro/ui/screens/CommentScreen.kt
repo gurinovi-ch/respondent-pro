@@ -60,7 +60,7 @@ fun CommentScreen(
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .width(screenWidth * 0.8f)
-                    .padding(bottom = 8.dp)
+                    .padding(top = 8.dp, bottom = 8.dp)
             )
 
             // EditText for keyboard input - takes remaining space
@@ -68,7 +68,7 @@ fun CommentScreen(
                 factory = { context ->
                     EditText(context).apply {
                         hint = "Ваш отзыв..."
-                        textSize = 18f
+                        textSize = 25.2f
                         maxLines = 8
                         minLines = 4
                         setPadding(32, 32, 32, 32)
