@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import com.respondent.pro.data.repository.AppSettings
 import com.respondent.pro.data.repository.SettingsRepository
 import com.respondent.pro.kiosk.KioskManager
+import com.respondent.pro.kiosk.WatchdogScheduler
 import com.respondent.pro.ui.i18n.LocalAppStrings
 import com.respondent.pro.ui.i18n.appStringsFor
 import com.respondent.pro.ui.navigation.NavGraph
@@ -35,6 +36,8 @@ class MainActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         // Политики DO — идемпотентно, без DO тихо пропускается
         kioskManager.applyPolicies()
+        // Перепланируем цепочку стража на каждый запуск (spec §3)
+        WatchdogScheduler.scheduleNext(this)
         setContent {
             val appSettings by settingsRepository.settings.collectAsState(initial = AppSettings())
             RespondentProTheme {

@@ -39,6 +39,14 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+        <receiver
+            android:name=".kiosk.RestartReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.respondent.pro.kiosk.ACTION_WATCHDOG" />
+                <action android:name="com.respondent.pro.kiosk.ACTION_RESTART" />
+            </intent-filter>
+        </receiver>
         <activity
             android:name=".MainActivity"
             android:exported="true"

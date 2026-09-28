@@ -3,6 +3,7 @@ package com.respondent.pro
 import android.app.Application
 import android.content.Context
 import android.util.Log
+import com.respondent.pro.kiosk.WatchdogScheduler
 import dagger.hilt.android.HiltAndroidApp
 import java.io.File
 import java.io.PrintWriter
@@ -52,6 +53,11 @@ class RespondentApp : Application() {
                         val extFile = File(context.getExternalFilesDir(null), CRASH_FILE)
                         extFile.appendText(log + "\n\n")
                     } catch (_: Exception) {}
+                } catch (_: Exception) {}
+
+                // Планируем перезапуск киоска после крэша (spec §3)
+                try {
+                    WatchdogScheduler.scheduleRestart(context)
                 } catch (_: Exception) {}
 
                 // Pass to default handler (shows system crash dialog)
