@@ -4,7 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.respondent.pro.data.model.Feedback
-import com.respondent.pro.data.remote.TelegramSender
+import com.respondent.pro.data.remote.FeedbackSender
 import com.respondent.pro.data.repository.FeedbackRepository
 import com.respondent.pro.data.repository.SettingsRepository
 import com.respondent.pro.data.repository.AppSettings
@@ -19,7 +19,7 @@ import javax.inject.Inject
 class FeedbackViewModel @Inject constructor(
     private val feedbackRepository: FeedbackRepository,
     private val settingsRepository: SettingsRepository,
-    private val telegramSender: TelegramSender
+    private val feedbackSender: FeedbackSender
 ) : ViewModel() {
 
     private val _rating = MutableStateFlow(0)
@@ -42,7 +42,7 @@ class FeedbackViewModel @Inject constructor(
         viewModelScope.launch {
             kotlinx.coroutines.delay(3000) // Wait for DataStore to load
             try {
-                val sent = telegramSender.sendUnsent()
+                val sent = feedbackSender.sendUnsent()
                 if (sent > 0) {
                     Log.d("FeedbackViewModel", "Retry: sent $sent unsent feedbacks")
                 }
@@ -86,6 +86,9 @@ class FeedbackViewModel @Inject constructor(
 
     fun saveIncompleteFeedback(text: String = "") {
         val currentRating = _rating.value
+        // Захватываем startedAt ДО resetAll(), иначе корутина прочитает
+        // уже обнулённое значение (время заполнения отображалось как «—»)
+        val currentStartedAt = startedAt
         if (currentRating > 0) {
             viewModelScope.launch {
                 try {
@@ -93,7 +96,7 @@ class FeedbackViewModel @Inject constructor(
                         Feedback(
                             rating = currentRating,
                             text = text,
-                            startedAt = startedAt,
+                            startedAt = currentStartedAt,
                             createdAt = System.currentTimeMillis(),
                             isComplete = false
                         )
@@ -103,10 +106,10 @@ class FeedbackViewModel @Inject constructor(
                         id = id,
                         rating = currentRating,
                         text = text,
-                        startedAt = startedAt,
+                        startedAt = currentStartedAt,
                         isComplete = false
                     )
-                    telegramSender.send(savedFeedback)
+                    feedbackSender.send(savedFeedback)
                 } catch (e: Exception) {
                     Log.e("FeedbackViewModel", "Error saving incomplete feedback", e)
                 }

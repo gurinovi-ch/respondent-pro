@@ -31,7 +31,9 @@ fun NavGraph() {
 
     // Shared reset function
     val onAutoReset: () -> Unit = {
-        if (settings.sendIncomplete) {
+        // Не сохраняем «неполный» отзыв, если отправка уже идёт —
+        // полный отзыв и так будет отправлен, дубля не должно быть
+        if (settings.sendIncomplete && !commentViewModel.isSending.value) {
             feedbackViewModel.saveIncompleteFeedback(commentViewModel.getComment())
         } else {
             feedbackViewModel.resetAll()
@@ -76,12 +78,16 @@ fun NavGraph() {
                 startedAt = feedbackViewModel.getStartedAt(),
                 settings = settings,
                 onSend = {
+                    // Отзыв успешно отправлен — сбрасываем состояние,
+                    // чтобы таймер автосброса не отправил его повторно как «неполный»
+                    feedbackViewModel.resetAll()
                     navController.navigate(Screen.ThankYou.route) {
                         popUpTo(Screen.Feedback.route) { inclusive = true }
                     }
                 },
                 onNoComment = {
                     commentViewModel.sendFeedback(rating, feedbackViewModel.getStartedAt()) {
+                        feedbackViewModel.resetAll()
                         navController.navigate(Screen.ThankYou.route) {
                             popUpTo(Screen.Feedback.route) { inclusive = true }
                         }

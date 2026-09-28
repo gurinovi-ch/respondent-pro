@@ -4,7 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.respondent.pro.data.model.Feedback
-import com.respondent.pro.data.remote.TelegramSender
+import com.respondent.pro.data.remote.FeedbackSender
 import com.respondent.pro.data.repository.FeedbackRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -25,7 +25,7 @@ sealed interface SendError {
 @HiltViewModel
 class CommentViewModel @Inject constructor(
     private val feedbackRepository: FeedbackRepository,
-    private val telegramSender: TelegramSender
+    private val feedbackSender: FeedbackSender
 ) : ViewModel() {
 
     private val _comment = MutableStateFlow("")
@@ -69,11 +69,11 @@ class CommentViewModel @Inject constructor(
                     startedAt = startedAt,
                     isComplete = true
                 )
-                val sent = telegramSender.send(savedFeedback)
+                val sent = feedbackSender.send(savedFeedback)
                 if (!sent) {
-                    Log.w("CommentViewModel", "Feedback saved but NOT sent to Telegram")
+                    Log.w("CommentViewModel", "Feedback saved but NOT sent")
                 } else {
-                    Log.d("CommentViewModel", "Feedback saved AND sent to Telegram ✓")
+                    Log.d("CommentViewModel", "Feedback saved AND sent ✓")
                 }
 
                 _sendSuccess.value = true

@@ -25,7 +25,23 @@ data class AppSettings(
     val resetTimeout: Int = 60,
     val sendIncomplete: Boolean = false,
     /** Код языка интерфейса: "ru" | "en". */
-    val language: String = "ru"
+    val language: String = "ru",
+    /** Способ отправки: "telegram" | "email" */
+    val sendMethod: String = "telegram",
+    /** Пресет SMTP: "gmail" | "yandex" | "custom" */
+    val emailPreset: String = "gmail",
+    /** Email отправителя */
+    val emailFrom: String = "",
+    /** Пароль приложения */
+    val emailPassword: String = "",
+    /** Email получателя */
+    val emailTo: String = "",
+    /** SMTP хост (для custom пресета) */
+    val smtpHost: String = "",
+    /** SMTP порт */
+    val smtpPort: Int = 587,
+    /** Использовать SSL */
+    val smtpSsl: Boolean = false
 )
 
 @Singleton
@@ -44,6 +60,14 @@ class SettingsRepository @Inject constructor(
         val RESET_TIMEOUT = intPreferencesKey("reset_timeout")
         val SEND_INCOMPLETE = booleanPreferencesKey("send_incomplete")
         val LANGUAGE = stringPreferencesKey("language")
+        val SEND_METHOD = stringPreferencesKey("send_method")
+        val EMAIL_PRESET = stringPreferencesKey("email_preset")
+        val EMAIL_FROM = stringPreferencesKey("email_from")
+        val EMAIL_PASSWORD = stringPreferencesKey("email_password")
+        val EMAIL_TO = stringPreferencesKey("email_to")
+        val SMTP_HOST = stringPreferencesKey("smtp_host")
+        val SMTP_PORT = intPreferencesKey("smtp_port")
+        val SMTP_SSL = booleanPreferencesKey("smtp_ssl")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -58,7 +82,15 @@ class SettingsRepository @Inject constructor(
             thankYouText = prefs[Keys.THANK_YOU_TEXT] ?: "",
             resetTimeout = prefs[Keys.RESET_TIMEOUT] ?: 60,
             sendIncomplete = prefs[Keys.SEND_INCOMPLETE] ?: false,
-            language = prefs[Keys.LANGUAGE] ?: "ru"
+            language = prefs[Keys.LANGUAGE] ?: "ru",
+            sendMethod = prefs[Keys.SEND_METHOD] ?: "telegram",
+            emailPreset = prefs[Keys.EMAIL_PRESET] ?: "gmail",
+            emailFrom = prefs[Keys.EMAIL_FROM] ?: "",
+            emailPassword = prefs[Keys.EMAIL_PASSWORD] ?: "",
+            emailTo = prefs[Keys.EMAIL_TO] ?: "",
+            smtpHost = prefs[Keys.SMTP_HOST] ?: "",
+            smtpPort = prefs[Keys.SMTP_PORT] ?: 587,
+            smtpSsl = prefs[Keys.SMTP_SSL] ?: false
         )
     }
 
@@ -75,6 +107,14 @@ class SettingsRepository @Inject constructor(
             prefs[Keys.RESET_TIMEOUT] = settings.resetTimeout
             prefs[Keys.SEND_INCOMPLETE] = settings.sendIncomplete
             prefs[Keys.LANGUAGE] = settings.language
+            prefs[Keys.SEND_METHOD] = settings.sendMethod
+            prefs[Keys.EMAIL_PRESET] = settings.emailPreset
+            prefs[Keys.EMAIL_FROM] = settings.emailFrom
+            prefs[Keys.EMAIL_PASSWORD] = settings.emailPassword
+            prefs[Keys.EMAIL_TO] = settings.emailTo
+            prefs[Keys.SMTP_HOST] = settings.smtpHost
+            prefs[Keys.SMTP_PORT] = settings.smtpPort
+            prefs[Keys.SMTP_SSL] = settings.smtpSsl
         }
     }
 
