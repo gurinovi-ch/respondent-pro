@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.respondent.pro.data.remote.TelegramApi
 import com.respondent.pro.data.repository.AppSettings
 import com.respondent.pro.data.repository.SettingsRepository
+import com.respondent.pro.kiosk.KioskManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,8 +16,12 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
-    private val telegramApi: TelegramApi
+    private val telegramApi: TelegramApi,
+    private val kioskManager: KioskManager
 ) : ViewModel() {
+
+    /** KioskManager — для excursion-выхода в системные настройки. */
+    val kiosk: KioskManager get() = kioskManager
 
     private val _settings = MutableStateFlow(AppSettings())
     val settings: StateFlow<AppSettings> = _settings

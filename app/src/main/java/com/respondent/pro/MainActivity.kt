@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import com.respondent.pro.data.repository.AppSettings
 import com.respondent.pro.data.repository.SettingsRepository
 import com.respondent.pro.kiosk.KioskManager
+import com.respondent.pro.kiosk.SettingsExcursionOverlay
 import com.respondent.pro.kiosk.WatchdogScheduler
 import com.respondent.pro.ui.i18n.LocalAppStrings
 import com.respondent.pro.ui.i18n.appStringsFor
@@ -58,6 +59,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Оверлей убираем первым — иначе он останется поверх нашего экрана
+        SettingsExcursionOverlay.hide(this)
         kioskManager.onActivityResumed(this)
     }
 

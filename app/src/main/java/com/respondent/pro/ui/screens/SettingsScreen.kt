@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import com.respondent.pro.data.repository.AppSettings
+import com.respondent.pro.kiosk.KioskManager
+import com.respondent.pro.kiosk.SettingsExcursionOverlay
 import com.respondent.pro.ui.i18n.LocalAppStrings
 import com.respondent.pro.viewmodel.ChatIdResult
 import com.respondent.pro.viewmodel.SettingsViewModel
@@ -33,6 +35,7 @@ fun SettingsScreen(
     val settings by viewModel.settings.collectAsState()
     var localSettings by remember(settings.copy(language = "")) { mutableStateOf(settings) }
     val context = LocalContext.current
+    val kioskManager = viewModel.kiosk
     val strings = LocalAppStrings.current
     var langExpanded by remember { mutableStateOf(false) }
     var sendMethodExpanded by remember { mutableStateOf(false) }
@@ -205,7 +208,18 @@ fun SettingsScreen(
             // 10. Настройки Android
             Button(
                 onClick = {
-                    context.startActivity(Intent(Settings.ACTION_SETTINGS))
+                    val activity = context as? android.app.Activity
+                    if (activity != null) {
+                        // Флаг excursion поднимаем ДО ухода из foreground (контракт M3)
+                        kioskManager.beginExcursion(activity)
+                    }
+                    if (SettingsExcursionOverlay.canDraw(context)) {
+                        context.startActivity(Intent(Settings.ACTION_SETTINGS))
+                        SettingsExcursionOverlay.show(context)
+                    } else {
+                        // Разрешения нет — один раз просим его выдать (spec §6)
+                        SettingsExcursionOverlay.openPermissionScreen(context)
+                    }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.outlinedButtonColors()
