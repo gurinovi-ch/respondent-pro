@@ -61,7 +61,7 @@ class KioskManager @Inject constructor(
         val dpm = dpm ?: return
         val actions = KioskPolicy.actions(isDeviceOwner(), context.packageName)
         if (actions.isEmpty()) {
-            Log.d(TAG, "Device Owner not granted — policies skipped")
+            Log.i(TAG, "Device Owner not granted — policies skipped")
             return
         }
         try {
@@ -85,7 +85,7 @@ class KioskManager @Inject constructor(
                     }
                 }
             }
-            Log.d(TAG, "Policies applied: ${actions.size}")
+            Log.i(TAG, "Policies applied: ${actions.size}")
         } catch (e: SecurityException) {
             Log.e(TAG, "applyPolicies failed", e)
         }
