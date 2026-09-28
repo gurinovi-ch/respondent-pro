@@ -79,5 +79,8 @@ dependencies {
     implementation("com.sun.mail:android-mail:1.6.7")
     implementation("com.sun.mail:android-activation:1.6.7")
 
+    // QR-код для провижининга
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+
     testImplementation("junit:junit:4.13.2")
 }
