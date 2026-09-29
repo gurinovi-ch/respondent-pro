@@ -1,18 +1,19 @@
 package com.respondent.pro.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.respondent.pro.ui.components.AutoResetTimer
 import com.respondent.pro.ui.components.PinInput
 import com.respondent.pro.ui.components.StarRating
+import com.respondent.pro.ui.components.SystemIndicators
 import com.respondent.pro.ui.i18n.LocalAppStrings
 import com.respondent.pro.ui.theme.FooterColor
 import com.respondent.pro.ui.theme.TextPrimary
@@ -34,6 +35,16 @@ fun FeedbackScreen(
     var timerKey by remember { mutableStateOf(0) }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        // Индикаторы рабочего режима: WiFi / заряд / вход в настройки (PIN).
+        // Отступ = 1% высоты экрана, одинаковый сверху и справа
+        val edgeMargin = (LocalConfiguration.current.screenHeightDp * 0.01f).dp
+        SystemIndicators(
+            onSettingsClick = { viewModel.showPin() },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = edgeMargin, end = edgeMargin)
+        )
+
         // Блок оценки — центр экрана по вертикали и горизонтали, ширина 80%
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -44,18 +55,13 @@ fun FeedbackScreen(
                 modifier = Modifier.fillMaxWidth(0.8f),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Organization name (long press for settings)
+                // Organization name (вход в настройки — через шестерёнку справа сверху)
                 Text(
                     text = settings.orgName.ifEmpty { "ORGANIZATION" },
                     fontSize = 21.sp,
                     color = TextSecondary,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .combinedClickable(
-                            onClick = {},
-                            onLongClick = { viewModel.showPin() }
-                        )
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -112,7 +118,7 @@ fun FeedbackScreen(
         ) {
             Text(
                 text = "RESPONDENT.PRO",
-                fontSize = 12.sp,
+                fontSize = 18.sp,
                 color = FooterColor
             )
 
