@@ -135,7 +135,12 @@ fun FeedbackScreen(
             // в сумме с статусом и таймером футер поднят ~ на 30% от прежнего отступа
             Spacer(modifier = Modifier.height(9.dp))
 
-            SystemIndicators(onSettingsClick = { viewModel.showPin() })
+            SystemIndicators(onSettingsClick = {
+                viewModel.showPin()
+                // Таймер автосброса стартует заново: на ввод PIN-кода
+                // должно быть полное время, а не остаток от экрана оценки
+                timerKey++
+            })
 
             Spacer(modifier = Modifier.height(9.dp))
 
