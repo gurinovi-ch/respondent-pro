@@ -160,11 +160,12 @@ fun CommentScreen(
                     .wrapContentHeight()
             )
 
-            // Buttons — 40% ширины экрана, высота 56dp, отступы 28dp (50% высоты кнопки)
+            // Buttons — 40% ширины экрана, высота 56dp; отступ сверху уменьшен,
+            // чтобы блок не подпирал низ экрана
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 28.dp),
+                    .padding(top = 12.dp),
                 horizontalArrangement = Arrangement.Center
             ) {
                 if (comment.isEmpty()) {
@@ -206,7 +207,7 @@ fun CommentScreen(
                 timeoutSeconds = 60,
                 resetTrigger = timerKey,
                 onTimeout = { onAutoReset() },
-                modifier = Modifier.padding(top = 28.dp)
+                modifier = Modifier.padding(top = 12.dp)
             )
         }
 

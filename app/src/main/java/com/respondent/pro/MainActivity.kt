@@ -1,5 +1,6 @@
 package com.respondent.pro
 
+import android.content.res.Configuration
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -78,6 +79,14 @@ class MainActivity : ComponentActivity() {
         // при каждом получении фокуса — система возвращает панели после
         // диалогов, клавиатуры и экскурсий в системные настройки (spec §9)
         if (hasFocus) hideSystemBars()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // Поворот экрана пере-применяет системные инсеты — без этого окно
+        // расширяется до полной высоты, а нижняя полоса остаётся закрытой
+        // (контент внизу обрезался). Синхронизируем скрытие панелей.
+        hideSystemBars()
     }
 
     private fun hideSystemBars() {
