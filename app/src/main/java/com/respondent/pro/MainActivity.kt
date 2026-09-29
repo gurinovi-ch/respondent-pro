@@ -74,15 +74,18 @@ class MainActivity : ComponentActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        // Киоск: панель навигации скрыта. Пере-применяем при каждом получении
-        // фокуса — система возвращает панель после диалогов, клавиатуры и
-        // экскурсий в системные настройки (spec §9)
-        if (hasFocus) hideNavigationBar()
+        // Киоск: системные панели (навигации и статуса) скрыты. Пере-применяем
+        // при каждом получении фокуса — система возвращает панели после
+        // диалогов, клавиатуры и экскурсий в системные настройки (spec §9)
+        if (hasFocus) hideSystemBars()
     }
 
-    private fun hideNavigationBar() {
+    private fun hideSystemBars() {
         val controller = WindowCompat.getInsetsController(window, window.decorView)
-        controller.hide(WindowInsetsCompat.Type.navigationBars())
+        controller.hide(
+            WindowInsetsCompat.Type.navigationBars() or
+                WindowInsetsCompat.Type.statusBars()
+        )
         // Свайп по краю показывает временную панель, которая сама скрывается
         controller.systemBarsBehavior =
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
