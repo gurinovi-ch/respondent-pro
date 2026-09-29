@@ -1,0 +1,134 @@
+# Review package: ee6719c..6e673df
+
+## Commits
+6e673df feat(kiosk): HOME launcher role + boot autostart
+
+## Files changed
+ app/src/main/AndroidManifest.xml                   |  9 +++++++
+ .../java/com/respondent/pro/kiosk/BootReceiver.kt  | 28 ++++++++++++++++++++++
+ .../java/com/respondent/pro/kiosk/KioskManager.kt  |  4 ++--
+ 3 files changed, 39 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 8efbaa6..73df43a 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -25,24 +25,33 @@
+             android:name=".kiosk.KioskAdminReceiver"
+             android:exported="true"
+             android:permission="android.permission.BIND_DEVICE_ADMIN">
+             <meta-data
+                 android:name="android.app.device_admin"
+                 android:resource="@xml/device_admin" />
+             <intent-filter>
+                 <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+             </intent-filter>
+         </receiver>
++        <receiver
++            android:name=".kiosk.BootReceiver"
++            android:exported="true">
++            <intent-filter>
++                <action android:name="android.intent.action.BOOT_COMPLETED" />
++            </intent-filter>
++        </receiver>
+         <activity
+             android:name=".MainActivity"
+             android:exported="true"
+             android:launchMode="singleTask"
+             android:screenOrientation="unspecified"
+             android:windowSoftInputMode="stateHidden|adjustResize"
+             android:configChanges="orientation|screenSize|keyboardHidden">
+             <intent-filter>
+                 <action android:name="android.intent.action.MAIN" />
+                 <category android:name="android.intent.category.LAUNCHER" />
++                <category android:name="android.intent.category.HOME" />
++                <category android:name="android.intent.category.DEFAULT" />
+             </intent-filter>
+         </activity>
+     </application>
+ </manifest>
+diff --git a/app/src/main/java/com/respondent/pro/kiosk/BootReceiver.kt b/app/src/main/java/com/respondent/pro/kiosk/BootReceiver.kt
+new file mode 100644
+index 0000000..1141fa3
+--- /dev/null
++++ b/app/src/main/java/com/respondent/pro/kiosk/BootReceiver.kt
+@@ -0,0 +1,28 @@
++package com.respondent.pro.kiosk
++
++import android.content.BroadcastReceiver
++import android.content.Context
++import android.content.Intent
++import android.util.Log
++import com.respondent.pro.MainActivity
++
++/** ╨Р╨▓╤В╨╛╨╖╨░╨┐╤Г╤Б╨║ ╨┐╨╛╤Б╨╗╨╡ ╨╖╨░╨│╤А╤Г╨╖╨║╨╕ ╤Б╨╕╤Б╤В╨╡╨╝╤Л (spec ┬з3). ╨С╨Ф/╨╜╨░╤Б╤В╤А╨╛╨╣╨║╨╕ ╨╜╨╡ ╤В╤А╨╛╨│╨░╨╡╤В. */
++class BootReceiver : BroadcastReceiver() {
++
++    companion object {
++        private const val TAG = "BootReceiver"
++    }
++
++    override fun onReceive(context: Context, intent: Intent) {
++        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
++        Log.i(TAG, "BOOT_COMPLETED тАФ launching MainActivity")
++        try {
++            val launch = Intent(context, MainActivity::class.java).apply {
++                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
++            }
++            context.startActivity(launch)
++        } catch (e: Exception) {
++            Log.e(TAG, "Failed to launch MainActivity", e)
++        }
++    }
++}
+diff --git a/app/src/main/java/com/respondent/pro/kiosk/KioskManager.kt b/app/src/main/java/com/respondent/pro/kiosk/KioskManager.kt
+index 8109618..7c3af96 100644
+--- a/app/src/main/java/com/respondent/pro/kiosk/KioskManager.kt
++++ b/app/src/main/java/com/respondent/pro/kiosk/KioskManager.kt
+@@ -54,21 +54,21 @@ class KioskManager @Inject constructor(
+             false
+         }
+         return KioskStatus(deviceOwner = owner, lockTaskPermitted = lockPermitted)
+     }
+ 
+     /** ╨Ш╨┤╨╡╨╝╨┐╨╛╤В╨╡╨╜╤В╨╜╨╛. ╨Т╤Л╨╖╤Л╨▓╨░╨╡╤В╤Б╤П ╨╕╨╖ MainActivity.onCreate. ╨С╨╡╨╖ DO тАФ ╤В╨╕╤Е╨╛ ╨╜╨╕╤З╨╡╨│╨╛ ╨╜╨╡ ╨┤╨╡╨╗╨░╨╡╤В. */
+     fun applyPolicies() {
+         val dpm = dpm ?: return
+         val actions = KioskPolicy.actions(isDeviceOwner(), context.packageName)
+         if (actions.isEmpty()) {
+-            Log.d(TAG, "Device Owner not granted тАФ policies skipped")
++            Log.i(TAG, "Device Owner not granted тАФ policies skipped")
+             return
+         }
+         try {
+             for (action in actions) {
+                 when (action) {
+                     PolicyAction.HideStatusBar -> dpm.setStatusBarDisabled(adminComponent, true)
+                     PolicyAction.DisableKeyguard -> dpm.setKeyguardDisabled(adminComponent, true)
+                     PolicyAction.BlockFactoryReset ->
+                         dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_FACTORY_RESET)
+                     PolicyAction.BlockSafeBoot ->
+@@ -78,21 +78,21 @@ class KioskManager @Inject constructor(
+                     is PolicyAction.ProtectApp ->
+                         dpm.setUninstallBlocked(adminComponent, action.pkg, true)
+                     is PolicyAction.WhitelistLockTask -> {
+                         dpm.setLockTaskPackages(adminComponent, arrayOf(action.pkg))
+                         if (Build.VERSION.SDK_INT >= 28) {
+                             dpm.setLockTaskFeatures(adminComponent, 0)
+                         }
+                     }
+                 }
+             }
+-            Log.d(TAG, "Policies applied: ${actions.size}")
++            Log.i(TAG, "Policies applied: ${actions.size}")
+         } catch (e: SecurityException) {
+             Log.e(TAG, "applyPolicies failed", e)
+         }
+     }
+ 
+     fun onActivityResumed(activity: Activity) {
+         isForeground = true
+         excursionActive = false
+         startLockTask(activity)
+     }

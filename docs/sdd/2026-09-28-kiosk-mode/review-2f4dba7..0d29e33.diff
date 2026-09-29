@@ -1,0 +1,38 @@
+# Review package: 2f4dba7..0d29e33
+
+## Commits
+0d29e33 feat(kiosk): KioskConfig with GitHub Releases APK url and adb commands
+
+## Files changed
+ .../java/com/respondent/pro/kiosk/KioskConfig.kt   | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+## Diff
+diff --git a/app/src/main/java/com/respondent/pro/kiosk/KioskConfig.kt b/app/src/main/java/com/respondent/pro/kiosk/KioskConfig.kt
+new file mode 100644
+index 0000000..d3f2a62
+--- /dev/null
++++ b/app/src/main/java/com/respondent/pro/kiosk/KioskConfig.kt
+@@ -0,0 +1,22 @@
++package com.respondent.pro.kiosk
++
++/**
++ * ╨Ъ╨╛╨╜╤Б╤В╨░╨╜╤В╤Л ╨╕╨╜╤Д╨╛╨║╨╕╨╛╤Б╨║╨░: ╨╛╤В╨║╤Г╨┤╨░ ╨┐╨╗╨░╨╜╤И╨╡╤В ╤Б╨║╨░╤З╨╕╨▓╨░╨╡╤В APK (QR-╨┐╤А╨╛╨▓╨╕╨╢╨╕╨╜╨╕╨╜╨│,
++ * ╨╕╨╜╤Б╤В╤А╤Г╨║╤Ж╨╕╤П ADB) ╨╕ ╨║╨╛╨╝╨░╨╜╨┤╤Л ╨╜╨░╤Б╤В╤А╨╛╨╣╨║╨╕. URL тАФ GitHub Releases (spec ┬з13.5).
++ */
++object KioskConfig {
++
++    /** ╨Ю╤А╨│╨░╨╜╨╕╨╖╨░╤Ж╨╕╤П/╤А╨╡╨┐╨╛╨╖╨╕╤В╨╛╤А╨╕╨╣: ╨┐╤Г╨▒╨╗╨╕╤З╨╜╤Л╨╣ ╤А╨╡╨┐╨╛╨╖╨╕╤В╨╛╤А╨╕╨╣, ╤Б╨╛╨╖╨┤╨░╨╜ ╨▓ Task 7. */
++    const val OWNER_REPO = "gurinovi-ch/respondent-pro"
++
++    const val APK_DOWNLOAD_URL =
++        "https://github.com/gurinovi-ch/respondent-pro/releases/download/v1.0-test/RESPONDENT.PRO.apk"
++
++    /** ╨Ъ╨╛╨╝╨░╨╜╨┤╤Л ╨╕╨╜╤Б╤В╤А╤Г╨║╤Ж╨╕╨╕ ADB тАФ ╨┐╨╛ ╨╛╨┤╨╜╨╛╨╣, ╨╜╨░╨╢╨░╤В╨╕╨╡ ╨║╨╛╨┐╨╕╤А╤Г╨╡╤В (Task 8). */
++    fun adbCommands(): List<String> = listOf(
++        "adb install -r RESPONDENT.PRO.apk",
++        "adb shell dpm set-device-owner com.respondent.pro/.kiosk.KioskAdminReceiver",
++        "adb shell cmd package set-home-activity com.respondent.pro/.MainActivity",
++        "adb shell appops set com.respondent.pro SYSTEM_ALERT_WINDOW allow"
++    )
++}

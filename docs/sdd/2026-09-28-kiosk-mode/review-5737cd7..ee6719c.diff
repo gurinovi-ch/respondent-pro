@@ -1,0 +1,307 @@
+# Review package: 5737cd7..ee6719c
+
+## Commits
+ee6719c feat(kiosk): KioskManager with DO policies and lock task (TDD)
+
+## Files changed
+ .../main/java/com/respondent/pro/MainActivity.kt   |  19 ++++
+ .../java/com/respondent/pro/kiosk/KioskManager.kt  | 124 +++++++++++++++++++++
+ .../java/com/respondent/pro/kiosk/KioskPolicy.kt   |  39 +++++++
+ .../com/respondent/pro/kiosk/KioskPolicyTest.kt    |  43 +++++++
+ 4 files changed, 225 insertions(+)
+
+## Diff
+diff --git a/app/src/main/java/com/respondent/pro/MainActivity.kt b/app/src/main/java/com/respondent/pro/MainActivity.kt
+index 162b7ee..8cce2d9 100644
+--- a/app/src/main/java/com/respondent/pro/MainActivity.kt
++++ b/app/src/main/java/com/respondent/pro/MainActivity.kt
+@@ -1,46 +1,65 @@
+ package com.respondent.pro
+ 
+ import android.os.Bundle
++import android.view.WindowManager
+ import androidx.activity.ComponentActivity
+ import androidx.activity.compose.setContent
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Surface
+ import androidx.compose.runtime.CompositionLocalProvider
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.getValue
+ import androidx.compose.ui.Modifier
+ import com.respondent.pro.data.repository.AppSettings
+ import com.respondent.pro.data.repository.SettingsRepository
++import com.respondent.pro.kiosk.KioskManager
+ import com.respondent.pro.ui.i18n.LocalAppStrings
+ import com.respondent.pro.ui.i18n.appStringsFor
+ import com.respondent.pro.ui.navigation.NavGraph
+ import com.respondent.pro.ui.theme.RespondentProTheme
+ import dagger.hilt.android.AndroidEntryPoint
+ import javax.inject.Inject
+ 
+ @AndroidEntryPoint
+ class MainActivity : ComponentActivity() {
+     @Inject
+     lateinit var settingsRepository: SettingsRepository
+ 
++    @Inject
++    lateinit var kioskManager: KioskManager
++
+     override fun onCreate(savedInstanceState: Bundle?) {
+         super.onCreate(savedInstanceState)
++        // ╨н╨║╤А╨░╨╜ ╨╜╨╕╨║╨╛╨│╨┤╨░ ╨╜╨╡ ╨│╨░╤Б╨╜╨╡╤В (╨║╨╕╨╛╤Б╨║, spec ┬з5)
++        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
++        // ╨Я╨╛╨╗╨╕╤В╨╕╨║╨╕ DO тАФ ╨╕╨┤╨╡╨╝╨┐╨╛╤В╨╡╨╜╤В╨╜╨╛, ╨▒╨╡╨╖ DO ╤В╨╕╤Е╨╛ ╨┐╤А╨╛╨┐╤Г╤Б╨║╨░╨╡╤В╤Б╤П
++        kioskManager.applyPolicies()
+         setContent {
+             val appSettings by settingsRepository.settings.collectAsState(initial = AppSettings())
+             RespondentProTheme {
+                 // ╨п╨╖╤Л╨║ ╨╕╨╜╤В╨╡╤А╤Д╨╡╨╣╤Б╨░ ╨┐╤А╨╕╨╝╨╡╨╜╤П╨╡╤В╤Б╤П ╨╝╨│╨╜╨╛╨▓╨╡╨╜╨╜╨╛ ╨┐╤А╨╕ ╨▓╤Л╨▒╨╛╤А╨╡ ╨▓ ╨╜╨░╤Б╤В╤А╨╛╨╣╨║╨░╤Е
+                 CompositionLocalProvider(
+                     LocalAppStrings provides appStringsFor(appSettings.language)
+                 ) {
+                     Surface(
+                         modifier = Modifier.fillMaxSize(),
+                         color = MaterialTheme.colorScheme.background
+                     ) {
+                         NavGraph()
+                     }
+                 }
+             }
+         }
+     }
++
++    override fun onResume() {
++        super.onResume()
++        kioskManager.onActivityResumed(this)
++    }
++
++    override fun onPause() {
++        kioskManager.onActivityPaused()
++        super.onPause()
++    }
+ }
+diff --git a/app/src/main/java/com/respondent/pro/kiosk/KioskManager.kt b/app/src/main/java/com/respondent/pro/kiosk/KioskManager.kt
+new file mode 100644
+index 0000000..8109618
+--- /dev/null
++++ b/app/src/main/java/com/respondent/pro/kiosk/KioskManager.kt
+@@ -0,0 +1,124 @@
++package com.respondent.pro.kiosk
++
++import android.app.Activity
++import android.app.admin.DevicePolicyManager
++import android.content.ComponentName
++import android.content.Context
++import android.os.Build
++import android.os.UserManager
++import android.util.Log
++import dagger.hilt.android.qualifiers.ApplicationContext
++import javax.inject.Inject
++import javax.inject.Singleton
++
++data class KioskStatus(val deviceOwner: Boolean, val lockTaskPermitted: Boolean)
++
++/**
++ * ╨Х╨┤╨╕╨╜╨░╤П ╤В╨╛╤З╨║╨░ ╨║╨╕╨╛╤Б╨║-╤А╨╡╨╢╨╕╨╝╨░: ╤Б╤В╨░╤В╤Г╤Б DO, ╨┐╤А╨╕╨╝╨╡╨╜╨╡╨╜╨╕╨╡ ╨┐╨╛╨╗╨╕╤В╨╕╨║,
++ * ╨▓╤Е╨╛╨┤/╨▓╤Л╤Е╨╛╨┤ ╨╕╨╖ Lock Task, ╤Д╨╗╨░╨│╨╕ ╨┤╨╗╤П watchdog (spec ┬з5тАУ7).
++ */
++@Singleton
++class KioskManager @Inject constructor(
++    @ApplicationContext private val context: Context
++) {
++    companion object {
++        private const val TAG = "KioskManager"
++    }
++
++    val adminComponent: ComponentName = ComponentName(context, KioskAdminReceiver::class.java)
++
++    @Volatile
++    var isForeground: Boolean = false
++        private set
++
++    @Volatile
++    var excursionActive: Boolean = false
++        private set
++
++    private val dpm: DevicePolicyManager?
++        get() = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
++
++    fun isDeviceOwner(): Boolean = try {
++        dpm?.isDeviceOwnerApp(context.packageName) == true
++    } catch (e: Exception) {
++        Log.e(TAG, "isDeviceOwnerApp failed", e)
++        false
++    }
++
++    fun status(): KioskStatus {
++        val owner = isDeviceOwner()
++        val lockPermitted = owner && try {
++            dpm?.isLockTaskPermitted(context.packageName) == true
++        } catch (e: Exception) {
++            Log.e(TAG, "isLockTaskPermitted failed", e)
++            false
++        }
++        return KioskStatus(deviceOwner = owner, lockTaskPermitted = lockPermitted)
++    }
++
++    /** ╨Ш╨┤╨╡╨╝╨┐╨╛╤В╨╡╨╜╤В╨╜╨╛. ╨Т╤Л╨╖╤Л╨▓╨░╨╡╤В╤Б╤П ╨╕╨╖ MainActivity.onCreate. ╨С╨╡╨╖ DO тАФ ╤В╨╕╤Е╨╛ ╨╜╨╕╤З╨╡╨│╨╛ ╨╜╨╡ ╨┤╨╡╨╗╨░╨╡╤В. */
++    fun applyPolicies() {
++        val dpm = dpm ?: return
++        val actions = KioskPolicy.actions(isDeviceOwner(), context.packageName)
++        if (actions.isEmpty()) {
++            Log.d(TAG, "Device Owner not granted тАФ policies skipped")
++            return
++        }
++        try {
++            for (action in actions) {
++                when (action) {
++                    PolicyAction.HideStatusBar -> dpm.setStatusBarDisabled(adminComponent, true)
++                    PolicyAction.DisableKeyguard -> dpm.setKeyguardDisabled(adminComponent, true)
++                    PolicyAction.BlockFactoryReset ->
++                        dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_FACTORY_RESET)
++                    PolicyAction.BlockSafeBoot ->
++                        dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_SAFE_BOOT)
++                    PolicyAction.MaxScreenTime ->
++                        dpm.setMaximumTimeToLock(adminComponent, KioskPolicy.MAX_LOCK_TIME_MS)
++                    is PolicyAction.ProtectApp ->
++                        dpm.setUninstallBlocked(adminComponent, action.pkg, true)
++                    is PolicyAction.WhitelistLockTask -> {
++                        dpm.setLockTaskPackages(adminComponent, arrayOf(action.pkg))
++                        if (Build.VERSION.SDK_INT >= 28) {
++                            dpm.setLockTaskFeatures(adminComponent, 0)
++                        }
++                    }
++                }
++            }
++            Log.d(TAG, "Policies applied: ${actions.size}")
++        } catch (e: SecurityException) {
++            Log.e(TAG, "applyPolicies failed", e)
++        }
++    }
++
++    fun onActivityResumed(activity: Activity) {
++        isForeground = true
++        excursionActive = false
++        startLockTask(activity)
++    }
++
++    fun onActivityPaused() {
++        isForeground = false
++    }
++
++    /** ╨Т╤А╨╡╨╝╨╡╨╜╨╜╤Л╨╣ ╨▓╤Л╤Е╨╛╨┤ ╨╕╨╖ Lock Task ╨▓ ╤Б╨╕╤Б╤В╨╡╨╝╨╜╤Л╨╡ ╨╜╨░╤Б╤В╤А╨╛╨╣╨║╨╕ (spec ┬з6). */
++    fun beginExcursion(activity: Activity) {
++        excursionActive = true
++        try {
++            activity.stopLockTask()
++        } catch (e: Exception) {
++            Log.e(TAG, "stopLockTask failed", e)
++        }
++    }
++
++    fun shouldRestart(): Boolean = RestartPolicy.shouldRestart(isForeground, excursionActive)
++
++    private fun startLockTask(activity: Activity) {
++        if (!isDeviceOwner()) return
++        try {
++            activity.startLockTask()
++        } catch (e: Exception) {
++            Log.e(TAG, "startLockTask failed", e)
++        }
++    }
++}
+diff --git a/app/src/main/java/com/respondent/pro/kiosk/KioskPolicy.kt b/app/src/main/java/com/respondent/pro/kiosk/KioskPolicy.kt
+new file mode 100644
+index 0000000..c5c179e
+--- /dev/null
++++ b/app/src/main/java/com/respondent/pro/kiosk/KioskPolicy.kt
+@@ -0,0 +1,39 @@
++package com.respondent.pro.kiosk
++
++/** ╨з╨╕╤Б╤В╨╛╨╡ ╨╛╨┐╨╕╤Б╨░╨╜╨╕╨╡ ╨┐╨╛╨╗╨╕╤В╨╕╨║ тАФ ╨╕╤Б╨┐╨╛╨╗╨╜╤П╨╡╤В KioskManager. ╨С╨╡╨╖ Android-╨╖╨░╨▓╨╕╤Б╨╕╨╝╨╛╤Б╤В╨╡╨╣. */
++sealed interface PolicyAction {
++    object HideStatusBar : PolicyAction
++    object DisableKeyguard : PolicyAction
++    object BlockFactoryReset : PolicyAction
++    object BlockSafeBoot : PolicyAction
++    object MaxScreenTime : PolicyAction
++    data class ProtectApp(val pkg: String) : PolicyAction
++    data class WhitelistLockTask(val pkg: String) : PolicyAction
++}
++
++object KioskPolicy {
++    /** ╨Ь╨░╨║╤Б╨╕╨╝╨░╨╗╤М╨╜╨╛╨╡ ╨▓╤А╨╡╨╝╤П ╨┤╨╛ ╨▒╨╗╨╛╨║╨╕╤А╨╛╨▓╨║╨╕ ╤Н╨║╤А╨░╨╜╨░, ╨╝╤Б. ╨Ф╨░╨╗╨╡╨╡ ╤Б╨╕╤Б╤В╨╡╨╝╨╜╨╛╨╣ тАФ ╤Н╨║╤А╨░╨╜ ╨╜╨╡ ╨▒╨╗╨╛╨║╨╕╤А╤Г╨╡╤В╤Б╤П. */
++    const val MAX_LOCK_TIME_MS = Long.MAX_VALUE / 2
++
++    fun actions(isDeviceOwner: Boolean, pkg: String): List<PolicyAction> {
++        if (!isDeviceOwner) return emptyList()
++        return listOf(
++            PolicyAction.HideStatusBar,
++            PolicyAction.DisableKeyguard,
++            PolicyAction.BlockFactoryReset,
++            PolicyAction.BlockSafeBoot,
++            PolicyAction.MaxScreenTime,
++            PolicyAction.ProtectApp(pkg),
++            PolicyAction.WhitelistLockTask(pkg)
++        )
++    }
++}
++
++object RestartPolicy {
++    /**
++     * ╨Я╨╡╤А╨╡╨╖╨░╨┐╤Г╤Б╨║╨░╤В╤М, ╤В╨╛╨╗╤М╨║╨╛ ╨╡╤Б╨╗╨╕ ╨┐╤А╨╕╨╗╨╛╨╢╨╡╨╜╨╕╨╡ ╨▓ ╤Д╨╛╨╜╨╡ ╨Ш ╨╜╨╡╤В ╨▓╤Л╤Е╨╛╨┤╨░ ╨▓ ╤Б╨╕╤Б╤В╨╡╨╝╨╜╤Л╨╡ ╨╜╨░╤Б╤В╤А╨╛╨╣╨║╨╕
++     * (excursion) тАФ ╨╕╨╜╨░╤З╨╡ watchdog ╨▓╤Л╤В╨░╤Б╨║╨╕╨▓╨░╨╗ ╨▒╤Л ╨┐╨╛╨╗╤М╨╖╨╛╨▓╨░╤В╨╡╨╗╤П ╨╕╨╖ ╨╜╨░╤Б╤В╤А╨╛╨╡╨║ (spec ┬з6).
++     */
++    fun shouldRestart(isForeground: Boolean, excursionActive: Boolean): Boolean =
++        !isForeground && !excursionActive
++}
+diff --git a/app/src/test/java/com/respondent/pro/kiosk/KioskPolicyTest.kt b/app/src/test/java/com/respondent/pro/kiosk/KioskPolicyTest.kt
+new file mode 100644
+index 0000000..35a2cb5
+--- /dev/null
++++ b/app/src/test/java/com/respondent/pro/kiosk/KioskPolicyTest.kt
+@@ -0,0 +1,43 @@
++package com.respondent.pro.kiosk
++
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertTrue
++import org.junit.Test
++
++class KioskPolicyTest {
++
++    private val pkg = "com.respondent.pro"
++
++    @Test
++    fun `no device owner тАФ no actions`() {
++        assertTrue(KioskPolicy.actions(isDeviceOwner = false, pkg = pkg).isEmpty())
++    }
++
++    @Test
++    fun `with device owner тАФ full lockdown set`() {
++        val actions = KioskPolicy.actions(isDeviceOwner = true, pkg = pkg)
++        assertTrue(actions.contains(PolicyAction.HideStatusBar))
++        assertTrue(actions.contains(PolicyAction.DisableKeyguard))
++        assertTrue(actions.contains(PolicyAction.BlockFactoryReset))
++        assertTrue(actions.contains(PolicyAction.BlockSafeBoot))
++        assertTrue(actions.contains(PolicyAction.MaxScreenTime))
++        assertTrue(actions.contains(PolicyAction.ProtectApp(pkg)))
++        assertTrue(actions.contains(PolicyAction.WhitelistLockTask(pkg)))
++    }
++
++    @Test
++    fun `restart when backgrounded without excursion`() {
++        assertTrue(RestartPolicy.shouldRestart(isForeground = false, excursionActive = false))
++    }
++
++    @Test
++    fun `no restart when foreground`() {
++        assertFalse(RestartPolicy.shouldRestart(isForeground = true, excursionActive = false))
++    }
++
++    @Test
++    fun `no restart during settings excursion`() {
++        // Review Focus тДЦ2: watchdog ╨╜╨╡ ╨┤╨╛╨╗╨╢╨╡╨╜ ╨▓╤Л╤В╨░╤Б╨║╨╕╨▓╨░╤В╤М ╨╕╨╖ ╤Б╨╕╤Б╤В╨╡╨╝╨╜╤Л╤Е ╨╜╨░╤Б╤В╤А╨╛╨╡╨║
++        assertFalse(RestartPolicy.shouldRestart(isForeground = false, excursionActive = true))
++    }
++}
