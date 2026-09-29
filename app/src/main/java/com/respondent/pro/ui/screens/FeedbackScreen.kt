@@ -22,7 +22,6 @@ import com.respondent.pro.ui.theme.FooterColor
 import com.respondent.pro.ui.theme.TextPrimary
 import com.respondent.pro.ui.theme.TextSecondary
 import com.respondent.pro.viewmodel.FeedbackViewModel
-import kotlin.math.min
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -151,19 +150,10 @@ fun FeedbackScreen(
         if (showPinDialog) {
             var pinError by remember { mutableStateOf(false) }
 
-            // Фон белый; углы = 5% от меньшей стороны экрана (стабильно
-            // при любом повороте, напр. 40dp на 1200px)
-            val dialogCorner = (
-                min(
-                    LocalConfiguration.current.screenWidthDp,
-                    LocalConfiguration.current.screenHeightDp
-                ) * 0.05f
-                ).dp
-
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { viewModel.hidePin(); pinError = false },
                 containerColor = Color.White,
-                shape = RoundedCornerShape(dialogCorner),
+                shape = RoundedCornerShape(5.dp),
                 title = { Text(strings.pinDialogTitle) },
                 text = {
                     PinInput(
