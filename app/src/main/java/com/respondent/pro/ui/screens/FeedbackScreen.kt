@@ -11,6 +11,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.respondent.pro.ui.components.AutoResetTimer
+import com.respondent.pro.ui.components.CircleCloseButton
 import com.respondent.pro.ui.components.PinInput
 import com.respondent.pro.ui.components.StarRating
 import com.respondent.pro.ui.components.SystemIndicators
@@ -35,15 +36,20 @@ fun FeedbackScreen(
     var timerKey by remember { mutableStateOf(0) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Индикаторы рабочего режима: WiFi / заряд / вход в настройки (PIN).
-        // Отступ = 1% высоты экрана, одинаковый сверху и справа
-        val edgeMargin = (LocalConfiguration.current.screenHeightDp * 0.01f).dp
-        SystemIndicators(
-            onSettingsClick = { viewModel.showPin() },
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = edgeMargin, end = edgeMargin)
-        )
+        // Крестик отмены — появляется после выбора оценки, до нажатия «Готово».
+        // Отступ = 1% высоты экрана (как был у индикаторов)
+        if (rating > 0) {
+            val edgeMargin = (LocalConfiguration.current.screenHeightDp * 0.01f).dp
+            CircleCloseButton(
+                onClick = {
+                    viewModel.resetAll()
+                    timerKey++
+                },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = edgeMargin, end = edgeMargin)
+            )
+        }
 
         // Блок оценки — центр экрана по вертикали и горизонтали, ширина 80%
         Column(
@@ -111,7 +117,7 @@ fun FeedbackScreen(
             }
         }
 
-        // Футер и таймер — у нижнего края экрана
+        // Футер, статус-блок и таймер — у нижнего края экрана
         Column(
             modifier = Modifier.align(Alignment.BottomCenter),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -122,7 +128,13 @@ fun FeedbackScreen(
                 color = FooterColor
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            // Равные отступы сверху и снизу от статус-блока;
+            // в сумме с статусом и таймером футер поднят ~ на 30% от прежнего отступа
+            Spacer(modifier = Modifier.height(9.dp))
+
+            SystemIndicators(onSettingsClick = { viewModel.showPin() })
+
+            Spacer(modifier = Modifier.height(9.dp))
 
             // Auto-reset timer
             AutoResetTimer(
