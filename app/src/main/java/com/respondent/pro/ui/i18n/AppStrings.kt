@@ -54,6 +54,12 @@ class AppStrings(
     val kioskAdbSpoiler: String,
     val kioskAdbSteps: String,
     val kioskCmdHint: String,
+    val kioskQrSpoiler: String,
+    val kioskQrSteps: String,
+    val kioskQrSsidLabel: String,
+    val kioskQrPasswordLabel: String,
+    val kioskQrShowButton: String,
+    val kioskQrShareButton: String,
     // Стартовый экран
     val btnDone: String,
     val defaultCallToAction: String,
@@ -114,6 +120,17 @@ val ruStrings = AppStrings(
         "3. Подключите планшет к ПК и выполните команды по одной (нажатие копирует команду).\n" +
         "4. Вернитесь в приложение — статус должен стать ✅.",
     kioskCmdHint = "Нажмите на текст, чтобы скопировать",
+    kioskQrSpoiler = "Настройка через QR-код (без ПК)",
+    kioskQrSteps = "1. Введите Wi-Fi (или оставьте пустым — сеть выберут в мастере) и нажмите «Показать QR-код».\n" +
+        "2. Сохраните/отправите QR изображение на второй устройство (телефон).\n" +
+        "3. Сбросьте планшет до заводского настроек.\n" +
+        "4. На приветственном экране: Android 7–9 — 6 касаний по экрану; Android 10+ — иконка доступности → камера.\n" +
+        "5. Наведите камеру на QR: планшет скачает APK, станет Device Owner и подключится к Wi-Fi.\n" +
+        "6. После запуска: выберите лаунчер (один раз) и выдайте разрешение «Поверх других окон».",
+    kioskQrSsidLabel = "Wi-Fi сеть (SSID)",
+    kioskQrPasswordLabel = "Пароль Wi-Fi",
+    kioskQrShowButton = "Показать QR-код",
+    kioskQrShareButton = "Поделиться",
     btnDone = "Готово",
     defaultCallToAction = "Пожалуйста оцените наши услуги",
     pinDialogTitle = "Введите PIN",
@@ -171,6 +188,17 @@ val enStrings = AppStrings(
         "3. Connect the tablet to a PC and run the commands one by one (tap to copy).\n" +
         "4. Return to the app — status should become ✅.",
     kioskCmdHint = "Tap text to copy",
+    kioskQrSpoiler = "Setup via QR code (no PC)",
+    kioskQrSteps = "1. Enter Wi-Fi (or leave empty — network is chosen in the wizard) and tap \"Show QR code\".\n" +
+        "2. Save/share the QR image to another device (phone).\n" +
+        "3. Factory-reset the tablet.\n" +
+        "4. On the welcome screen: Android 7–9 — tap the screen 6 times; Android 10+ — accessibility icon → camera.\n" +
+        "5. Point the camera at the QR: the tablet downloads the APK, becomes Device Owner and connects to Wi-Fi.\n" +
+        "6. On first launch: choose the launcher (once) and grant \"Display over other apps\".",
+    kioskQrSsidLabel = "Wi-Fi network (SSID)",
+    kioskQrPasswordLabel = "Wi-Fi password",
+    kioskQrShowButton = "Show QR code",
+    kioskQrShareButton = "Share",
     btnDone = "Done",
     defaultCallToAction = "Please rate our services",
     pinDialogTitle = "Enter PIN",

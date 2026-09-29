@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.font.FontFamily
@@ -28,6 +30,7 @@ import com.respondent.pro.data.repository.AppSettings
 import com.respondent.pro.kiosk.KioskConfig
 import com.respondent.pro.kiosk.KioskManager
 import com.respondent.pro.kiosk.KioskStatus
+import com.respondent.pro.kiosk.ProvisioningQr
 import com.respondent.pro.kiosk.SettingsExcursionOverlay
 import com.respondent.pro.ui.i18n.LocalAppStrings
 import com.respondent.pro.viewmodel.ChatIdResult
@@ -54,6 +57,19 @@ fun SettingsScreen(
     var instructionsExpanded by remember { mutableStateOf(false) }
     var kioskExpanded by remember { mutableStateOf(false) }
     var adbExpanded by remember { mutableStateOf(false) }
+    var qrExpanded by remember { mutableStateOf(false) }
+    var qrSsid by remember { mutableStateOf("") }
+    var qrPassword by remember { mutableStateOf("") }
+    var qrBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+
+    // Payload QR-провижининга собирается одинаково для показа и отправки
+    val buildQrPayload = {
+        ProvisioningQr.buildPayload(
+            KioskConfig.APK_DOWNLOAD_URL,
+            qrSsid.ifBlank { null },
+            qrPassword.ifBlank { null }
+        )
+    }
 
     val kioskStatus by viewModel.kioskStatus.collectAsState()
     LaunchedEffect(Unit) { viewModel.refreshKioskStatus() }
@@ -499,8 +515,43 @@ fun SettingsScreen(
                 expanded = kioskExpanded,
                 onToggle = { kioskExpanded = !kioskExpanded },
                 adbExpanded = adbExpanded,
-                onToggleAdb = { adbExpanded = !adbExpanded }
+                onToggleAdb = { adbExpanded = !adbExpanded },
+                qrExpanded = qrExpanded,
+                onToggleQr = { qrExpanded = !qrExpanded },
+                qrSsid = qrSsid,
+                onSsidChange = { qrSsid = it },
+                qrPassword = qrPassword,
+                onPasswordChange = { qrPassword = it },
+                onShowQr = { qrBitmap = ProvisioningQr.encodeQr(buildQrPayload()) },
+                qrBitmap = qrBitmap,
+                onDismissQr = { qrBitmap = null },
+                onShareQr = { ProvisioningQr.shareQr(context, buildQrPayload()) }
             )
+
+            // Диалог с QR-изображением
+            qrBitmap?.let { bmp ->
+                AlertDialog(
+                    onDismissRequest = { qrBitmap = null },
+                    title = { Text(strings.kioskQrShowButton) },
+                    text = {
+                        Image(
+                            bitmap = bmp.asImageBitmap(),
+                            contentDescription = strings.kioskQrShowButton,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { ProvisioningQr.shareQr(context, buildQrPayload()) }) {
+                            Text(strings.kioskQrShareButton)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { qrBitmap = null }) {
+                            Text(strings.btnCancel)
+                        }
+                    }
+                )
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
         }
@@ -726,7 +777,17 @@ private fun KioskCard(
     expanded: Boolean,
     onToggle: () -> Unit,
     adbExpanded: Boolean,
-    onToggleAdb: () -> Unit
+    onToggleAdb: () -> Unit,
+    qrExpanded: Boolean,
+    onToggleQr: () -> Unit,
+    qrSsid: String,
+    onSsidChange: (String) -> Unit,
+    qrPassword: String,
+    onPasswordChange: (String) -> Unit,
+    onShowQr: () -> Unit,
+    qrBitmap: android.graphics.Bitmap?,
+    onDismissQr: () -> Unit,
+    onShareQr: () -> Unit
 ) {
     val strings = LocalAppStrings.current
     val context = LocalContext.current
@@ -805,6 +866,53 @@ private fun KioskCard(
                             )
                             KioskConfig.adbCommands().forEach { cmd ->
                                 CommandText(text = cmd)
+                            }
+                        }
+                    }
+
+                    // ▶ Настройка через QR-код
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onToggleQr() },
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = strings.kioskQrSpoiler,
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        Text(text = if (qrExpanded) "▲" else "▼")
+                    }
+
+                    AnimatedVisibility(visible = qrExpanded) {
+                        Column(modifier = Modifier.padding(top = 8.dp)) {
+                            Text(
+                                text = strings.kioskQrSteps,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = qrSsid,
+                                onValueChange = onSsidChange,
+                                label = { Text(strings.kioskQrSsidLabel) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = qrPassword,
+                                onValueChange = onPasswordChange,
+                                label = { Text(strings.kioskQrPasswordLabel) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            Button(
+                                onClick = onShowQr,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp)
+                            ) {
+                                Text(strings.kioskQrShowButton)
                             }
                         }
                     }

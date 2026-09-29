@@ -44,6 +44,12 @@ android {
             )
         }
     }
+    testOptions {
+        unitTests {
+            // Robolectric: манифест/ресурсы для юнит-тестов (смоук QR-кода)
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -83,4 +89,6 @@ dependencies {
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
 
     testImplementation("junit:junit:4.13.2")
+    // Смоук-тест encodeQr: нужен реальный android.graphics.Bitmap
+    testImplementation("org.robolectric:robolectric:4.14.1")
 }

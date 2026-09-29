@@ -7,7 +7,9 @@ class KioskStringsTest {
 
     private fun kioskValues(s: AppStrings) = listOf(
         s.kioskTitle, s.kioskStatusOwner, s.kioskStatusLock, s.kioskStatusNoOwner,
-        s.kioskAdbSpoiler, s.kioskAdbSteps, s.kioskCmdHint
+        s.kioskAdbSpoiler, s.kioskAdbSteps, s.kioskCmdHint,
+        s.kioskQrSpoiler, s.kioskQrSteps, s.kioskQrSsidLabel,
+        s.kioskQrPasswordLabel, s.kioskQrShowButton, s.kioskQrShareButton
     )
 
     @Test
