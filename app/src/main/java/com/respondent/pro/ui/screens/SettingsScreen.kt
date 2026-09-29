@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
@@ -73,6 +74,17 @@ fun SettingsScreen(
 
     val kioskStatus by viewModel.kioskStatus.collectAsState()
     LaunchedEffect(Unit) { viewModel.refreshKioskStatus() }
+
+    // При входе в настройки системная клавиатура скрывается (оставалась
+    // после ввода PIN); снова появляется только по тапу на текстовое поле
+    val imeView = LocalView.current
+    LaunchedEffect(Unit) {
+        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE)
+            as android.view.inputmethod.InputMethodManager
+        imeView.post {
+            imeView.windowToken?.let { imm.hideSoftInputFromWindow(it, 0) }
+        }
+    }
 
     // Auto-fill Chat ID when detected
     LaunchedEffect(chatIdResult) {
