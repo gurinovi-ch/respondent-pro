@@ -9,6 +9,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -156,6 +157,20 @@ fun FeedbackScreen(
                 shape = RoundedCornerShape(10.dp),
                 title = { Text(strings.pinDialogTitle) },
                 text = {
+                    // Панели системной навигации скрыты и во время показа
+                    // PIN-диалога: окно диалога не наследует immersive-флаги
+                    // главного окна, и система возвращала панели обратно
+                    val dialogView = LocalView.current
+                    SideEffect {
+                        @Suppress("DEPRECATION")
+                        dialogView.rootView.systemUiVisibility =
+                            android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                                android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                                android.view.View.SYSTEM_UI_FLAG_FULLSCREEN or
+                                android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                                android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                                android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    }
                     PinInput(
                         pin = "",
                         onPinChanged = { pinError = false },
