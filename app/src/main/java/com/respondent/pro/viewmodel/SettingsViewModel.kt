@@ -7,6 +7,7 @@ import com.respondent.pro.data.remote.TelegramApi
 import com.respondent.pro.data.repository.AppSettings
 import com.respondent.pro.data.repository.SettingsRepository
 import com.respondent.pro.kiosk.KioskManager
+import com.respondent.pro.kiosk.KioskStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,6 +30,14 @@ class SettingsViewModel @Inject constructor(
     /** Результат автоопределения Chat ID */
     private val _chatIdResult = MutableStateFlow<ChatIdResult?>(null)
     val chatIdResult: StateFlow<ChatIdResult?> = _chatIdResult
+
+    /** Статус инфокиоска — обновляется при каждом открытии экрана настроек */
+    private val _kioskStatus = MutableStateFlow<KioskStatus?>(null)
+    val kioskStatus: StateFlow<KioskStatus?> = _kioskStatus
+
+    fun refreshKioskStatus() {
+        _kioskStatus.value = kioskManager.status()
+    }
 
     /** Идёт ли запрос Chat ID */
     private val _isDetectingChatId = MutableStateFlow(false)

@@ -46,6 +46,14 @@ class AppStrings(
     val smtpSslLabel: String,
     // Инструкции
     val instructionsTitle: String,
+    // Инфокиоск
+    val kioskTitle: String,
+    val kioskStatusOwner: String,
+    val kioskStatusLock: String,
+    val kioskStatusNoOwner: String,
+    val kioskAdbSpoiler: String,
+    val kioskAdbSteps: String,
+    val kioskCmdHint: String,
     // Стартовый экран
     val btnDone: String,
     val defaultCallToAction: String,
@@ -96,6 +104,16 @@ val ruStrings = AppStrings(
     smtpPortLabel = "SMTP порт",
     smtpSslLabel = "SSL",
     instructionsTitle = "Инструкции",
+    kioskTitle = "ИНФОКИОСК",
+    kioskStatusOwner = "✅ Device Owner выдан",
+    kioskStatusLock = "Lock Task активен",
+    kioskStatusNoOwner = "⚠️ Device Owner не выдан — полная блокировка недоступна",
+    kioskAdbSpoiler = "Настройка через ADB (с ПК)",
+    kioskAdbSteps = "1. Включите USB-отладку: Параметры → О телефоне → 7 касаний по «Номеру сборки».\n" +
+        "2. Скачайте APK по ссылке ниже (нажатие копирует).\n" +
+        "3. Подключите планшет к ПК и выполните команды по одной (нажатие копирует команду).\n" +
+        "4. Вернитесь в приложение — статус должен стать ✅.",
+    kioskCmdHint = "Нажмите на текст, чтобы скопировать",
     btnDone = "Готово",
     defaultCallToAction = "Пожалуйста оцените наши услуги",
     pinDialogTitle = "Введите PIN",
@@ -143,6 +161,16 @@ val enStrings = AppStrings(
     smtpPortLabel = "SMTP port",
     smtpSslLabel = "SSL",
     instructionsTitle = "Instructions",
+    kioskTitle = "KIOSK MODE",
+    kioskStatusOwner = "✅ Device Owner granted",
+    kioskStatusLock = "Lock Task active",
+    kioskStatusNoOwner = "⚠️ Device Owner not granted — full lockdown unavailable",
+    kioskAdbSpoiler = "Setup via ADB (from PC)",
+    kioskAdbSteps = "1. Enable USB debugging: Settings → About tablet → tap \"Build number\" 7 times.\n" +
+        "2. Download the APK via the link below (tap to copy).\n" +
+        "3. Connect the tablet to a PC and run the commands one by one (tap to copy).\n" +
+        "4. Return to the app — status should become ✅.",
+    kioskCmdHint = "Tap text to copy",
     btnDone = "Done",
     defaultCallToAction = "Please rate our services",
     pinDialogTitle = "Enter PIN",

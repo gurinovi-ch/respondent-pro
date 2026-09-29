@@ -1,8 +1,12 @@
 package com.respondent.pro.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -14,13 +18,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import com.respondent.pro.data.repository.AppSettings
+import com.respondent.pro.kiosk.KioskConfig
 import com.respondent.pro.kiosk.KioskManager
+import com.respondent.pro.kiosk.KioskStatus
 import com.respondent.pro.kiosk.SettingsExcursionOverlay
 import com.respondent.pro.ui.i18n.LocalAppStrings
 import com.respondent.pro.viewmodel.ChatIdResult
@@ -45,6 +52,11 @@ fun SettingsScreen(
     val isDetectingChatId by viewModel.isDetectingChatId.collectAsState()
 
     var instructionsExpanded by remember { mutableStateOf(false) }
+    var kioskExpanded by remember { mutableStateOf(false) }
+    var adbExpanded by remember { mutableStateOf(false) }
+
+    val kioskStatus by viewModel.kioskStatus.collectAsState()
+    LaunchedEffect(Unit) { viewModel.refreshKioskStatus() }
 
     // Auto-fill Chat ID when detected
     LaunchedEffect(chatIdResult) {
@@ -481,6 +493,15 @@ fun SettingsScreen(
                 sendMethod = localSettings.sendMethod
             )
 
+            // 13. Инфокиоск — статус и инструкции
+            KioskCard(
+                status = kioskStatus,
+                expanded = kioskExpanded,
+                onToggle = { kioskExpanded = !kioskExpanded },
+                adbExpanded = adbExpanded,
+                onToggleAdb = { adbExpanded = !adbExpanded }
+            )
+
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
@@ -697,4 +718,118 @@ private fun EmailInstructions() {
             )
         }
     }
+}
+
+@Composable
+private fun KioskCard(
+    status: KioskStatus?,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    adbExpanded: Boolean,
+    onToggleAdb: () -> Unit
+) {
+    val strings = LocalAppStrings.current
+    val context = LocalContext.current
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onToggle() },
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = strings.kioskTitle,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = if (expanded) "▲" else "▼",
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+
+            // Статус виден всегда, даже свёрнутым
+            Text(
+                text = when {
+                    status == null -> ""
+                    status.deviceOwner && status.lockTaskPermitted ->
+                        "${strings.kioskStatusOwner}\n${strings.kioskStatusLock}"
+                    status.deviceOwner -> strings.kioskStatusOwner
+                    else -> strings.kioskStatusNoOwner
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (status?.deviceOwner == true) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.error
+                },
+                modifier = Modifier.padding(top = 4.dp)
+            )
+
+            AnimatedVisibility(visible = expanded) {
+                Column(modifier = Modifier.padding(top = 12.dp)) {
+                    // ▶ Настройка через ADB
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onToggleAdb() },
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = strings.kioskAdbSpoiler,
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        Text(text = if (adbExpanded) "▲" else "▼")
+                    }
+
+                    AnimatedVisibility(visible = adbExpanded) {
+                        Column(modifier = Modifier.padding(top = 8.dp)) {
+                            Text(
+                                text = strings.kioskAdbSteps,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            // Ссылка на APK — копируется по нажатию
+                            CommandText(text = KioskConfig.APK_DOWNLOAD_URL)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = strings.kioskCmdHint,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            KioskConfig.adbCommands().forEach { cmd ->
+                                CommandText(text = cmd)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CommandText(text: String) {
+    val context = LocalContext.current
+    Text(
+        text = text,
+        fontFamily = FontFamily.Monospace,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                val clipboard =
+                    context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("adb", text))
+            }
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(8.dp)
+    )
 }
