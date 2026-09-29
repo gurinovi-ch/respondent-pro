@@ -3,6 +3,9 @@ package com.respondent.pro
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -67,5 +70,21 @@ class MainActivity : ComponentActivity() {
     override fun onPause() {
         kioskManager.onActivityPaused()
         super.onPause()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // Киоск: панель навигации скрыта. Пере-применяем при каждом получении
+        // фокуса — система возвращает панель после диалогов, клавиатуры и
+        // экскурсий в системные настройки (spec §9)
+        if (hasFocus) hideNavigationBar()
+    }
+
+    private fun hideNavigationBar() {
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        controller.hide(WindowInsetsCompat.Type.navigationBars())
+        // Свайп по краю показывает временную панель, которая сама скрывается
+        controller.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
     }
 }
