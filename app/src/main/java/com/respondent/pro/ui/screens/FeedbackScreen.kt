@@ -153,7 +153,7 @@ fun FeedbackScreen(
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { viewModel.hidePin(); pinError = false },
                 containerColor = Color.White,
-                shape = RoundedCornerShape(5.dp),
+                shape = RoundedCornerShape(10.dp),
                 title = { Text(strings.pinDialogTitle) },
                 text = {
                     PinInput(
