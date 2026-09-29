@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import android.view.ViewTreeObserver
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -27,6 +28,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import com.respondent.pro.data.repository.AppSettings
 import com.respondent.pro.kiosk.KioskConfig
 import com.respondent.pro.kiosk.KioskManager
@@ -74,6 +77,31 @@ fun SettingsScreen(
 
     val kioskStatus by viewModel.kioskStatus.collectAsState()
     LaunchedEffect(Unit) { viewModel.refreshKioskStatus() }
+
+    // В настройках возвращаем навигационную панель: её кнопка-шеврон скрывает
+    // системную клавиатуру (на главном экране панели нет). Статус-бар остаётся
+    // скрытым. Показываем повторно при возврате фокуса (после PIN-диалога и
+    // экскурсий в системные настройки), при выходе — скрываем.
+    val navBarView = LocalView.current
+    DisposableEffect(Unit) {
+        val activity = context as? com.respondent.pro.MainActivity
+        val controller = activity?.let {
+            WindowCompat.getInsetsController(it.window, navBarView)
+        }
+        fun showNav() {
+            controller?.show(WindowInsetsCompat.Type.navigationBars())
+        }
+        showNav()
+        navBarView.post { showNav() }
+        val focusListener = ViewTreeObserver.OnWindowFocusChangeListener { hasFocus ->
+            if (hasFocus) showNav()
+        }
+        navBarView.viewTreeObserver.addOnWindowFocusChangeListener(focusListener)
+        onDispose {
+            navBarView.viewTreeObserver.removeOnWindowFocusChangeListener(focusListener)
+            activity?.hideSystemBars()
+        }
+    }
 
     // При входе в настройки системная клавиатура скрывается (оставалась
     // после ввода PIN); снова появляется только по тапу на текстовое поле

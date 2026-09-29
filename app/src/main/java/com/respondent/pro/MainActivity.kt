@@ -89,7 +89,8 @@ class MainActivity : ComponentActivity() {
         hideSystemBars()
     }
 
-    private fun hideSystemBars() {
+    /** Скрыть системные панели (вызывается также из SettingsScreen при выходе). */
+    fun hideSystemBars() {
         val controller = WindowCompat.getInsetsController(window, window.decorView)
         controller.hide(
             WindowInsetsCompat.Type.navigationBars() or
