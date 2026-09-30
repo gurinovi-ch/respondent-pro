@@ -8,6 +8,7 @@ import android.provider.Settings
 import android.view.ViewTreeObserver
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -18,6 +19,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -125,17 +127,47 @@ fun SettingsScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Старт — закреплён сверху, всегда виден
-        Button(
-            onClick = {
-                viewModel.saveSettings(localSettings)
-                onStart()
-            },
+        // Верхняя панель действий: Настройки Android (30%) + отступ (5%) +
+        // Старт (65%) — занимают слот бывшей кнопки «Старт»
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp, vertical = 12.dp)
         ) {
-            Text(strings.btnStart)
+            Button(
+                onClick = {
+                    val activity = context as? android.app.Activity
+                    if (activity != null) {
+                        // Флаг excursion поднимаем ДО ухода из foreground (контракт M3)
+                        kioskManager.beginExcursion(activity)
+                    }
+                    if (SettingsExcursionOverlay.canDraw(context)) {
+                        context.startActivity(Intent(Settings.ACTION_SETTINGS))
+                        SettingsExcursionOverlay.show(context)
+                    } else {
+                        // Разрешения нет — один раз просим его выдать (spec §6)
+                        SettingsExcursionOverlay.openPermissionScreen(context)
+                    }
+                },
+                modifier = Modifier.weight(0.30f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.White,
+                    contentColor = MaterialTheme.colorScheme.primary
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+            ) {
+                Text(strings.androidSettingsLabel, maxLines = 1)
+            }
+            Spacer(modifier = Modifier.weight(0.05f))
+            Button(
+                onClick = {
+                    viewModel.saveSettings(localSettings)
+                    onStart()
+                },
+                modifier = Modifier.weight(0.65f)
+            ) {
+                Text(strings.btnStart)
+            }
         }
 
         Column(
@@ -273,31 +305,7 @@ fun SettingsScreen(
                 )
             }
 
-            // 10. Настройки Android
-            Button(
-                onClick = {
-                    val activity = context as? android.app.Activity
-                    if (activity != null) {
-                        // Флаг excursion поднимаем ДО ухода из foreground (контракт M3)
-                        kioskManager.beginExcursion(activity)
-                    }
-                    if (SettingsExcursionOverlay.canDraw(context)) {
-                        context.startActivity(Intent(Settings.ACTION_SETTINGS))
-                        SettingsExcursionOverlay.show(context)
-                    } else {
-                        // Разрешения нет — один раз просим его выдать (spec §6)
-                        SettingsExcursionOverlay.openPermissionScreen(context)
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors()
-            ) {
-                Text(strings.androidSettingsLabel)
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // 11. Способ отправки — выделенный блок внизу
+            // 10. Способ отправки — выделенный блок внизу
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
