@@ -124,6 +124,11 @@ class KioskManager @Inject constructor(
             Log.e(TAG, "stopLockTask failed", e)
         }
         return try {
+            // Снятие политики ProtectApp ДО отречения от владельца:
+            // clearDeviceOwnerApp не сбрасывает метку блокировки удаления
+            // в PackageManager — без этого остаётся навсегда
+            // DELETE_FAILED_OWNER_BLOCKED и приложение нельзя удалить.
+            dpm?.setUninstallBlocked(adminComponent, context.packageName, false)
             dpm?.clearDeviceOwnerApp(context.packageName)
             Log.i(TAG, "Device Owner cleared — kiosk disabled")
             true
