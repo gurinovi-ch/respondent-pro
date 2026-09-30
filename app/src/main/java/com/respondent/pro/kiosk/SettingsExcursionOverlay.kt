@@ -2,26 +2,35 @@ package com.respondent.pro.kiosk
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.PixelFormat
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.text.TextPaint
 import android.util.Log
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
-import android.widget.TextView
+import android.widget.ImageView
+import androidx.core.content.ContextCompat
 import com.respondent.pro.MainActivity
+import com.respondent.pro.R
+import kotlin.math.ceil
 
 /**
- * Плавающая кнопка «◀ В RESPONDENT.PRO» поверх системных настроек (spec §6).
- * Показывается только при наличии разрешения SYSTEM_ALERT_WINDOW.
+ * Вертикальный ярлык «RESPONDENT.PRO» поверх системных настроек (spec §6).
+ * Плашка справа по центру экрана: фон primary (#178776), белый текст,
+ * читается снизу вверх. Показывается только при разрешении SYSTEM_ALERT_WINDOW.
  */
 object SettingsExcursionOverlay {
 
     private const val TAG = "ExcursionOverlay"
-    private const val OVERLAY_TEXT = "◀ В RESPONDENT.PRO"
+    private const val OVERLAY_TEXT = "RESPONDENT.PRO"
 
     private var currentView: View? = null
 
@@ -38,6 +47,41 @@ object SettingsExcursionOverlay {
         } catch (e: Exception) {
             Log.e(TAG, "openPermissionScreen failed", e)
         }
+    }
+
+    /**
+     * Рендерит горизонтальную плашку в bitmap и поворачивает на −90°
+     * (текст снизу вверх). Поворот самой View обрезается окном WindowManager
+     * по не-повёрнутым границам поверхности, поэтому текст готовим заранее —
+     * окно создаётся ровно под размер итоговой плашки, мёртвых зон нет.
+     */
+    private fun renderVerticalTab(context: Context): Bitmap {
+        val res = context.resources
+        val density = res.displayMetrics.density
+        val scale = res.displayMetrics.scaledDensity
+        val paint = TextPaint(TextPaint.ANTI_ALIAS_FLAG).apply {
+            textSize = 15f * scale
+            color = Color.WHITE
+            typeface = Typeface.DEFAULT
+        }
+        val fm = paint.fontMetrics
+        val padX = (14 * density)
+        val padY = (10 * density)
+        val w = ceil(paint.measureText(OVERLAY_TEXT)).toInt() + (2 * padX).toInt()
+        val h = (fm.descent - fm.ascent).toInt() + (2 * padY).toInt()
+
+        val src = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        Canvas(src).apply {
+            drawColor(ContextCompat.getColor(context, R.color.primary))
+            drawText(
+                OVERLAY_TEXT,
+                padX,
+                h / 2f - (fm.descent + fm.ascent) / 2f,
+                paint
+            )
+        }
+        val matrix = Matrix().apply { postRotate(-90f) }
+        return Bitmap.createBitmap(src, 0, 0, w, h, matrix, true)
     }
 
     fun show(context: Context) {
@@ -61,19 +105,13 @@ object SettingsExcursionOverlay {
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT
             ).apply {
-                gravity = Gravity.BOTTOM or Gravity.END
+                // Справа, вертикальный центр экрана
+                gravity = Gravity.END or Gravity.CENTER_VERTICAL
                 x = (16 * density).toInt()
-                y = (96 * density).toInt() // выше системной панели навигации
+                y = 0
             }
-            val view = TextView(context).apply {
-                text = OVERLAY_TEXT
-                setBackgroundColor(0xE6000000.toInt())
-                setTextColor(Color.WHITE)
-                setPadding(
-                    (14 * density).toInt(), (10 * density).toInt(),
-                    (14 * density).toInt(), (10 * density).toInt()
-                )
-                textSize = 15f
+            val view = ImageView(context).apply {
+                setImageBitmap(renderVerticalTab(context))
                 setOnClickListener {
                     try {
                         val back = Intent(context, MainActivity::class.java).apply {
