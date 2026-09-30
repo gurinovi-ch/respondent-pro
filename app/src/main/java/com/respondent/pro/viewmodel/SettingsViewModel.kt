@@ -39,6 +39,13 @@ class SettingsViewModel @Inject constructor(
         _kioskStatus.value = kioskManager.status()
     }
 
+    /** Отключение режима киоска: Lock Task + снятие Device Owner. */
+    fun disableKiosk(activity: android.app.Activity) {
+        if (kioskManager.disableKiosk(activity)) {
+            refreshKioskStatus()
+        }
+    }
+
     /** Идёт ли запрос Chat ID */
     private val _isDetectingChatId = MutableStateFlow(false)
     val isDetectingChatId: StateFlow<Boolean> = _isDetectingChatId

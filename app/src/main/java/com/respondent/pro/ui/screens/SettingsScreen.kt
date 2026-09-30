@@ -562,6 +562,9 @@ fun SettingsScreen(
                 status = kioskStatus,
                 expanded = kioskExpanded,
                 onToggle = { kioskExpanded = !kioskExpanded },
+                onDisableKiosk = {
+                    (context as? android.app.Activity)?.let { viewModel.disableKiosk(it) }
+                },
                 adbExpanded = adbExpanded,
                 onToggleAdb = { adbExpanded = !adbExpanded },
                 qrExpanded = qrExpanded,
@@ -824,6 +827,7 @@ private fun KioskCard(
     status: KioskStatus?,
     expanded: Boolean,
     onToggle: () -> Unit,
+    onDisableKiosk: () -> Unit,
     adbExpanded: Boolean,
     onToggleAdb: () -> Unit,
     qrExpanded: Boolean,
@@ -881,6 +885,42 @@ private fun KioskCard(
                 },
                 modifier = Modifier.padding(top = 4.dp)
             )
+
+            // Отключение режима киоска — только при выданном Device Owner,
+            // с подтверждением (снятие DO: clearDeviceOwnerApp, без стирания данных)
+            if (status?.deviceOwner == true) {
+                var showDisableConfirm by remember { mutableStateOf(false) }
+                Button(
+                    onClick = { showDisableConfirm = true },
+                    modifier = Modifier.padding(top = 8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) {
+                    Text(strings.kioskDisableBtn)
+                }
+                if (showDisableConfirm) {
+                    AlertDialog(
+                        onDismissRequest = { showDisableConfirm = false },
+                        title = { Text(strings.kioskDisableTitle) },
+                        text = { Text(strings.kioskDisableMessage) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showDisableConfirm = false
+                                onDisableKiosk()
+                            }) {
+                                Text(strings.kioskDisableConfirm)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showDisableConfirm = false }) {
+                                Text(strings.btnCancel)
+                            }
+                        }
+                    )
+                }
+            }
 
             AnimatedVisibility(visible = expanded) {
                 Column(modifier = Modifier.padding(top = 12.dp)) {

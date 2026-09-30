@@ -51,6 +51,10 @@ class AppStrings(
     val kioskStatusOwner: String,
     val kioskStatusLock: String,
     val kioskStatusNoOwner: String,
+    val kioskDisableBtn: String,
+    val kioskDisableTitle: String,
+    val kioskDisableMessage: String,
+    val kioskDisableConfirm: String,
     val kioskAdbSpoiler: String,
     val kioskAdbSteps: String,
     val kioskCmdHint: String,
@@ -114,6 +118,10 @@ val ruStrings = AppStrings(
     kioskStatusOwner = "✅ Device Owner выдан",
     kioskStatusLock = "Lock Task активен",
     kioskStatusNoOwner = "⚠️ Device Owner не выдан — полная блокировка недоступна",
+    kioskDisableBtn = "Отключить режим киоска",
+    kioskDisableTitle = "Отключить режим киоска?",
+    kioskDisableMessage = "Device Owner и Lock Task будут деактивированы — приложение потеряет блокировку киоска.",
+    kioskDisableConfirm = "Отключить",
     kioskAdbSpoiler = "Настройка через ADB (с ПК)",
     kioskAdbSteps = "1. Включите USB-отладку: Параметры → О телефоне → 7 касаний по «Номеру сборки».\n" +
         "2. Скачайте APK по ссылке ниже (нажатие копирует).\n" +
@@ -182,6 +190,10 @@ val enStrings = AppStrings(
     kioskStatusOwner = "✅ Device Owner granted",
     kioskStatusLock = "Lock Task active",
     kioskStatusNoOwner = "⚠️ Device Owner not granted — full lockdown unavailable",
+    kioskDisableBtn = "Disable kiosk mode",
+    kioskDisableTitle = "Disable kiosk mode?",
+    kioskDisableMessage = "Device Owner and Lock Task will be deactivated — the app will lose its kiosk lock.",
+    kioskDisableConfirm = "Disable",
     kioskAdbSpoiler = "Setup via ADB (from PC)",
     kioskAdbSteps = "1. Enable USB debugging: Settings → About tablet → tap \"Build number\" 7 times.\n" +
         "2. Download the APK via the link below (tap to copy).\n" +

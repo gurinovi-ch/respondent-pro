@@ -111,6 +111,28 @@ class KioskManager @Inject constructor(
         }
     }
 
+    /**
+     * Деактивация режима киоска: выход из Lock Task и снятие Device Owner
+     * штатным вызовом clearDeviceOwnerApp — приложение-владелец снимает
+     * себя само, данные устройства не стираются. Возвращает успех.
+     */
+    fun disableKiosk(activity: Activity): Boolean {
+        if (!isDeviceOwner()) return false
+        try {
+            activity.stopLockTask()
+        } catch (e: Exception) {
+            Log.e(TAG, "stopLockTask failed", e)
+        }
+        return try {
+            dpm?.clearDeviceOwnerApp(context.packageName)
+            Log.i(TAG, "Device Owner cleared — kiosk disabled")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "clearDeviceOwnerApp failed", e)
+            false
+        }
+    }
+
     fun shouldRestart(): Boolean = RestartPolicy.shouldRestart(isForeground, excursionActive)
 
     private fun startLockTask(activity: Activity) {
