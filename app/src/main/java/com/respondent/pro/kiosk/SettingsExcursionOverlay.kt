@@ -92,7 +92,6 @@ object SettingsExcursionOverlay {
         }
         try {
             val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-            val density = context.resources.displayMetrics.density
             val params = WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
@@ -105,9 +104,9 @@ object SettingsExcursionOverlay {
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT
             ).apply {
-                // Справа, вертикальный центр экрана
+                // Вплотную к правому краю, вертикальный центр экрана
                 gravity = Gravity.END or Gravity.CENTER_VERTICAL
-                x = (16 * density).toInt()
+                x = 0
                 y = 0
             }
             val view = ImageView(context).apply {
