@@ -9,7 +9,11 @@ class KioskStringsTest {
         s.kioskTitle, s.kioskStatusOwner, s.kioskStatusLock, s.kioskStatusNoOwner,
         s.kioskAdbSpoiler, s.kioskAdbSteps, s.kioskCmdHint,
         s.kioskQrSpoiler, s.kioskQrSteps, s.kioskQrSsidLabel,
-        s.kioskQrPasswordLabel, s.kioskQrShowButton, s.kioskQrShareButton
+        s.kioskQrPasswordLabel, s.kioskQrShowButton, s.kioskQrShareButton,
+        s.kioskQrDiagSpoiler, s.kioskQrDiagRun, s.kioskQrDiagRunning,
+        s.kioskQrDiagReady, s.kioskQrDiagNotReady, s.kioskQrDiagApi,
+        s.kioskQrDiagScanner, s.kioskQrDiagMp, s.kioskQrDiagNetwork,
+        s.kioskQrDiagPayload, s.kioskQrDiagUrl, s.kioskQrDiagNote
     )
 
     @Test

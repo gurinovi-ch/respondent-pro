@@ -37,7 +37,10 @@ import com.respondent.pro.kiosk.KioskConfig
 import com.respondent.pro.kiosk.KioskManager
 import com.respondent.pro.kiosk.KioskStatus
 import com.respondent.pro.kiosk.ProvisioningQr
+import com.respondent.pro.kiosk.QrCheck
+import com.respondent.pro.kiosk.QrDiagnosticsResult
 import com.respondent.pro.kiosk.SettingsExcursionOverlay
+import com.respondent.pro.ui.i18n.AppStrings
 import com.respondent.pro.ui.i18n.LocalAppStrings
 import com.respondent.pro.viewmodel.ChatIdResult
 import com.respondent.pro.viewmodel.SettingsViewModel
@@ -67,6 +70,7 @@ fun SettingsScreen(
     var qrSsid by remember { mutableStateOf("") }
     var qrPassword by remember { mutableStateOf("") }
     var qrBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var qrDiagExpanded by remember { mutableStateOf(false) }
 
     // Payload QR-провижининга собирается одинаково для показа и отправки
     val buildQrPayload = {
@@ -79,6 +83,8 @@ fun SettingsScreen(
     }
 
     val kioskStatus by viewModel.kioskStatus.collectAsState()
+    val qrDiagnostics by viewModel.qrDiagnostics.collectAsState()
+    val isRunningQrDiagnostics by viewModel.isRunningQrDiagnostics.collectAsState()
     LaunchedEffect(Unit) { viewModel.refreshKioskStatus() }
 
     // В настройках возвращаем навигационную панель: её кнопка-шеврон скрывает
@@ -577,7 +583,12 @@ fun SettingsScreen(
                 onShowQr = { qrBitmap = ProvisioningQr.encodeQr(buildQrPayload()) },
                 qrBitmap = qrBitmap,
                 onDismissQr = { qrBitmap = null },
-                onShareQr = { ProvisioningQr.shareQr(context, buildQrPayload()) }
+                onShareQr = { ProvisioningQr.shareQr(context, buildQrPayload()) },
+                qrDiagExpanded = qrDiagExpanded,
+                onToggleQrDiag = { qrDiagExpanded = !qrDiagExpanded },
+                qrDiagnostics = qrDiagnostics,
+                isRunningQrDiagnostics = isRunningQrDiagnostics,
+                onRunQrDiagnostics = { viewModel.runQrDiagnostics() }
             )
 
             // Диалог с QR-изображением
@@ -840,7 +851,12 @@ private fun KioskCard(
     onShowQr: () -> Unit,
     qrBitmap: android.graphics.Bitmap?,
     onDismissQr: () -> Unit,
-    onShareQr: () -> Unit
+    onShareQr: () -> Unit,
+    qrDiagExpanded: Boolean,
+    onToggleQrDiag: () -> Unit,
+    qrDiagnostics: QrDiagnosticsResult?,
+    isRunningQrDiagnostics: Boolean,
+    onRunQrDiagnostics: () -> Unit
 ) {
     val strings = LocalAppStrings.current
     val context = LocalContext.current
@@ -1005,10 +1021,104 @@ private fun KioskCard(
                             }
                         }
                     }
+
+                    // ▶ Проверка QR-провижининга
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onToggleQrDiag() },
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = strings.kioskQrDiagSpoiler,
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        Text(text = if (qrDiagExpanded) "▲" else "▼")
+                    }
+
+                    AnimatedVisibility(visible = qrDiagExpanded) {
+                        Column(modifier = Modifier.padding(top = 8.dp)) {
+                            Button(
+                                onClick = onRunQrDiagnostics,
+                                enabled = !isRunningQrDiagnostics,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = if (isRunningQrDiagnostics) {
+                                        strings.kioskQrDiagRunning
+                                    } else {
+                                        strings.kioskQrDiagRun
+                                    }
+                                )
+                            }
+
+                            qrDiagnostics?.let { diag ->
+                                diag.results.forEach { item ->
+                                    Row(modifier = Modifier.padding(top = 4.dp)) {
+                                        Text(
+                                            text = if (item.ok) "✓" else "✗",
+                                            color = if (item.ok) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.error
+                                            }
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = diagTitle(strings, item.check),
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                    if (!item.ok && item.detail != null) {
+                                        Text(
+                                            text = item.detail,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.padding(start = 24.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = if (diag.ready) {
+                                        strings.kioskQrDiagReady
+                                    } else {
+                                        val failed = diag.firstFailed
+                                            ?.let { diagTitle(strings, it.check) }.orEmpty()
+                                        "${strings.kioskQrDiagNotReady}: $failed"
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (diag.ready) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.error
+                                    },
+                                    modifier = Modifier.padding(top = 8.dp)
+                                )
+                            }
+
+                            Text(
+                                text = strings.kioskQrDiagNote,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun diagTitle(strings: AppStrings, check: QrCheck): String = when (check) {
+    QrCheck.API_LEVEL -> strings.kioskQrDiagApi
+    QrCheck.QR_SCANNER -> strings.kioskQrDiagScanner
+    QrCheck.MANAGED_PROVISIONING -> strings.kioskQrDiagMp
+    QrCheck.NETWORK -> strings.kioskQrDiagNetwork
+    QrCheck.PAYLOAD -> strings.kioskQrDiagPayload
+    QrCheck.APK_URL -> strings.kioskQrDiagUrl
 }
 
 @Composable
