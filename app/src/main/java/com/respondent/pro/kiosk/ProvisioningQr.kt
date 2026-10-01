@@ -21,10 +21,17 @@ object ProvisioningQr {
 
     const val ADMIN_COMPONENT = "com.respondent.pro/.kiosk.KioskAdminReceiver"
 
-    fun buildPayload(apkUrl: String, wifiSsid: String?, wifiPassword: String?): String {
+    /**
+     * @param apkChecksum URL-safe Base64 SHA-256 файла по [apkUrl] — обязателен:
+     *  AOSP ManagedProvisioning (PackageDownloadInfo.validateFields) завершает
+     *  провижининг ошибкой «Не удалось настроить устройство», если при заданном
+     *  DOWNLOAD_LOCATION нет ни PACKAGE_CHECKSUM, ни SIGNATURE_CHECKSUM.
+     */
+    fun buildPayload(apkUrl: String, apkChecksum: String, wifiSsid: String?, wifiPassword: String?): String {
         val root = JsonObject()
         root.addProperty("android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME", ADMIN_COMPONENT)
         root.addProperty("android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION", apkUrl)
+        root.addProperty("android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM", apkChecksum)
         if (!wifiSsid.isNullOrBlank()) {
             root.addProperty("android.app.extra.PROVISIONING_WIFI_SSID", wifiSsid)
             if (!wifiPassword.isNullOrEmpty()) {
