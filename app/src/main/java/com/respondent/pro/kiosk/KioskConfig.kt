@@ -13,13 +13,15 @@ object KioskConfig {
         "https://github.com/gurinovi-ch/respondent-pro/releases/download/v1.0-test/RESPONDENT.PRO.apk"
 
     /**
-     * URL-safe Base64 SHA-256 файла по [APK_DOWNLOAD_URL] (PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM).
-     * Обновлять ОБЯЗАТЕЛЬНО вместе с [APK_DOWNLOAD_URL] при новом релизе —
-     * значение вычисляется как Base64(URL_SAFE) от SHA-256 самого APK-файла релиза.
-     * Значение для v1.0-test: sha256=a6b08af8ccc6bca369ea7181f34fff166b691afcc9080e4ff9ce7efc34a2d21c.
+     * URL-safe Base64 SHA-256 СЕРТИФИКАТА ПОДПИСИ APK (PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM).
+     * Значение СТАБИЛЬНО для всех сборок, подписанных этим же (debug) ключом — в отличие от
+     * PACKAGE_CHECKSUM (hash файла), который пришлось бы менять при каждой заливке нового APK
+     * на релиз. Пересчёт: `apksigner verify --print-certs <apk>` → "certificate SHA-256 digest"
+     * → Base64 URL_SAFE. Для debug-ключа: sha256=ff9415f0853d50c74379f3f6d5d8fb5ff08b276a9b0476b6386974f3503eb62d.
+     * Менять ТОЛЬКО при смене ключа подписи.
      */
-    const val APK_DOWNLOAD_SHA256 =
-        "prCK-MzGvKNp6nGB80__FmtpGvzJCA5P-c5-_DSi0hw="
+    const val APK_SIGNATURE_SHA256 =
+        "_5QV8IU9UMdDefP21dj7X_CLJ2qbBHa2OGl081A-ti0="
 
     /** Команды инструкции ADB — по одной, нажатие копирует (Task 8). */
     fun adbCommands(): List<String> = listOf(

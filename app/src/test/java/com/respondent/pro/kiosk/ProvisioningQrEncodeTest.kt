@@ -20,7 +20,7 @@ class ProvisioningQrEncodeTest {
 
     @Test
     fun `encodeQr returns non-null bitmap for built payload`() {
-        val payload = ProvisioningQr.buildPayload(url, "prCK-MzGvKNp6nGB80__FmtpGvzJCA5P-c5-_DSi0hw=", "MyNet", "secret1")
+        val payload = ProvisioningQr.buildPayload(url, "_5QV8IU9UMdDefP21dj7X_CLJ2qbBHa2OGl081A-ti0=", "MyNet", "secret1")
         val bitmap = ProvisioningQr.encodeQr(payload)
         assertNotNull("encodeQr must return a non-null bitmap", bitmap)
         val bmp = bitmap!!

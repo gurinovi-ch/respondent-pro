@@ -72,7 +72,7 @@ fun SettingsScreen(
     val buildQrPayload = {
         ProvisioningQr.buildPayload(
             KioskConfig.APK_DOWNLOAD_URL,
-            KioskConfig.APK_DOWNLOAD_SHA256,
+            KioskConfig.APK_SIGNATURE_SHA256,
             qrSsid.ifBlank { null },
             qrPassword.ifBlank { null }
         )

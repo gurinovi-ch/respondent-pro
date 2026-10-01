@@ -9,11 +9,11 @@ import org.junit.Test
 class ProvisioningQrTest {
 
     private val url = "https://example.com/releases/latest/download/RESPONDENT.PRO.apk"
-    private val checksum = "prCK-MzGvKNp6nGB80__FmtpGvzJCA5P-c5-_DSi0hw="
+    private val signatureChecksum = "_5QV8IU9UMdDefP21dj7X_CLJ2qbBHa2OGl081A-ti0="
 
     @Test
     fun `payload contains admin component, download url and skip encryption`() {
-        val json = JsonParser.parseString(ProvisioningQr.buildPayload(url, checksum, null, null)).asJsonObject
+        val json = JsonParser.parseString(ProvisioningQr.buildPayload(url, signatureChecksum, null, null)).asJsonObject
         assertEquals(
             "com.respondent.pro/.kiosk.KioskAdminReceiver",
             json["android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME"].asString
@@ -25,43 +25,60 @@ class ProvisioningQrTest {
     // AOSP ManagedProvisioning (PackageDownloadInfo.validateFields) падает с
     // «Package checksum or signature checksum must be provided», если при заданном
     // DOWNLOAD_LOCATION нет ни одного checksum — QR-провижининг мгновенно
-    // завершался ошибкой «Не удалось настроить устройство».
+    // завершался ошибкой «Не удалось настроить устройство». Берём SIGNATURE_CHECKSUM
+    // (SHA-256 сертификата подписи): стабилен для всех сборок с одним ключом,
+    // в отличие от PACKAGE_CHECKSUM (hash файла не может быть внутри самого файла).
     @Test
-    fun `payload contains url-safe base64 package checksum`() {
-        val json = JsonParser.parseString(ProvisioningQr.buildPayload(url, checksum, null, null)).asJsonObject
+    fun `payload contains url-safe base64 signature checksum`() {
+        val json = JsonParser.parseString(ProvisioningQr.buildPayload(url, signatureChecksum, null, null)).asJsonObject
         assertEquals(
-            checksum,
-            json["android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM"].asString
+            signatureChecksum,
+            json["android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM"].asString
         )
+        assertFalse(json.has("android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM"))
     }
 
     @Test
     fun `wifi keys omitted when ssid is null or blank`() {
-        val json = JsonParser.parseString(ProvisioningQr.buildPayload(url, checksum, null, "pass")).asJsonObject
+        val json = JsonParser.parseString(ProvisioningQr.buildPayload(url, signatureChecksum, null, "pass")).asJsonObject
         assertFalse(json.has("android.app.extra.PROVISIONING_WIFI_SSID"))
         assertFalse(json.has("android.app.extra.PROVISIONING_WIFI_PASSWORD"))
 
-        val jsonBlank = JsonParser.parseString(ProvisioningQr.buildPayload(url, checksum, "  ", null)).asJsonObject
+        val jsonBlank = JsonParser.parseString(ProvisioningQr.buildPayload(url, signatureChecksum, "  ", null)).asJsonObject
         assertFalse(jsonBlank.has("android.app.extra.PROVISIONING_WIFI_SSID"))
     }
 
     @Test
     fun `wifi keys present when ssid provided`() {
-        val json = JsonParser.parseString(ProvisioningQr.buildPayload(url, checksum, "MyNet", "secret1")).asJsonObject
+        val json = JsonParser.parseString(ProvisioningQr.buildPayload(url, signatureChecksum, "MyNet", "secret1")).asJsonObject
         assertEquals("MyNet", json["android.app.extra.PROVISIONING_WIFI_SSID"].asString)
         assertEquals("secret1", json["android.app.extra.PROVISIONING_WIFI_PASSWORD"].asString)
     }
 
+    // Без WIFI_SECURITY_TYPE AOSP WifiConfigurationProvider трактует сеть как
+    // открытую (NONE) и подключение с верным паролем проваливается.
+    @Test
+    fun `wifi security type wpa present when password provided`() {
+        val json = JsonParser.parseString(ProvisioningQr.buildPayload(url, signatureChecksum, "MyNet", "secret1")).asJsonObject
+        assertEquals("WPA", json["android.app.extra.PROVISIONING_WIFI_SECURITY_TYPE"].asString)
+    }
+
+    @Test
+    fun `wifi security type omitted when no password`() {
+        val json = JsonParser.parseString(ProvisioningQr.buildPayload(url, signatureChecksum, "MyNet", "")).asJsonObject
+        assertFalse(json.has("android.app.extra.PROVISIONING_WIFI_SECURITY_TYPE"))
+    }
+
     @Test
     fun `password omitted when ssid given but password empty`() {
-        val json = JsonParser.parseString(ProvisioningQr.buildPayload(url, checksum, "MyNet", "")).asJsonObject
+        val json = JsonParser.parseString(ProvisioningQr.buildPayload(url, signatureChecksum, "MyNet", "")).asJsonObject
         assertEquals("MyNet", json["android.app.extra.PROVISIONING_WIFI_SSID"].asString)
         assertFalse(json.has("android.app.extra.PROVISIONING_WIFI_PASSWORD"))
     }
 
     @Test
     fun `payload is valid json object`() {
-        val parsed = JsonParser.parseString(ProvisioningQr.buildPayload(url, checksum, "Net", "pw"))
+        val parsed = JsonParser.parseString(ProvisioningQr.buildPayload(url, signatureChecksum, "Net", "pw"))
         assertTrue(parsed.isJsonObject)
     }
 }

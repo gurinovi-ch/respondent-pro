@@ -12,7 +12,7 @@
 - APK: `app\build\outputs\apk\debug\app-debug.apk`
   - debug-сборка, подписана debug-ключом (release в проекте не подписывается)
   - версия: `1.0-test`
-  - SHA-256 сборки от 01.10.2026: `D4B11FA68C8FA6F954C3BE335CAE241FEBB13BD343328136BB9E2B55DEFF504C`
+  - SHA-256 сборки от 01.10.2026 (QR checksum + Wi-Fi security): `A0860670DB25188120A7E64DEC74663FC6C8961308AA7C57365A4A51C3013FB7`
     (при пересборке меняется)
 
 ## Предпосылки

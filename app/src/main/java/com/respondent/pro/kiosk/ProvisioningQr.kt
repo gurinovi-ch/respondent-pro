@@ -22,16 +22,26 @@ object ProvisioningQr {
     const val ADMIN_COMPONENT = "com.respondent.pro/.kiosk.KioskAdminReceiver"
 
     /**
-     * @param apkChecksum URL-safe Base64 SHA-256 файла по [apkUrl] — обязателен:
-     *  AOSP ManagedProvisioning (PackageDownloadInfo.validateFields) завершает
-     *  провижининг ошибкой «Не удалось настроить устройство», если при заданном
-     *  DOWNLOAD_LOCATION нет ни PACKAGE_CHECKSUM, ни SIGNATURE_CHECKSUM.
+     * @param apkSignatureChecksum URL-safe Base64 SHA-256 сертификата подписи APK по [apkUrl]
+     *  (PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM) — обязателен: AOSP ManagedProvisioning
+     *  (PackageDownloadInfo.validateFields) завершает провижининг ошибкой «Не удалось
+     *  настроить устройство», если при заданном DOWNLOAD_LOCATION нет ни PACKAGE_CHECKSUM,
+     *  ни SIGNATURE_CHECKSUM. Проверяется VerifyPackageTask после скачивания.
      */
-    fun buildPayload(apkUrl: String, apkChecksum: String, wifiSsid: String?, wifiPassword: String?): String {
+    fun buildPayload(apkUrl: String, apkSignatureChecksum: String, wifiSsid: String?, wifiPassword: String?): String {
         val root = JsonObject()
         root.addProperty("android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME", ADMIN_COMPONENT)
         root.addProperty("android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION", apkUrl)
-        root.addProperty("android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM", apkChecksum)
+        root.addProperty("android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM", apkSignatureChecksum)
+        if (!wifiSsid.isNullOrBlank()) {
+            root.addProperty("android.app.extra.PROVISIONING_WIFI_SSID", wifiSsid)
+            if (!wifiPassword.isNullOrEmpty()) {
+                root.addProperty("android.app.extra.PROVISIONING_WIFI_PASSWORD", wifiPassword)
+                // Без этого ключа AOSP WifiConfigurationProvider трактует сеть как открытую
+                // (NONE) и подключение с верным паролем проваливается. WPA = WPA/WPA2-PSK.
+                root.addProperty("android.app.extra.PROVISIONING_WIFI_SECURITY_TYPE", "WPA")
+            }
+        }
         if (!wifiSsid.isNullOrBlank()) {
             root.addProperty("android.app.extra.PROVISIONING_WIFI_SSID", wifiSsid)
             if (!wifiPassword.isNullOrEmpty()) {
