@@ -48,6 +48,8 @@ android {
         unitTests {
             // Robolectric: манифест/ресурсы для юнит-тестов (смоук QR-кода)
             isIncludeAndroidResources = true
+            // android.util.Log в plain-юнит-тестах: возвращать дефолты, не бросать
+            isReturnDefaultValues = true
         }
     }
 }

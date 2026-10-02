@@ -91,6 +91,13 @@ class CabinetBinderTest {
         assertEquals(0, storage.clearCalls)
     }
 
+    @Test fun `unexpected runtime exception maps to NETWORK_ERROR without crash`() = runBlocking {
+        val storage = FakeStorage()
+        val api = FakeApi { throw IllegalStateException("malformed json response") }
+        assertEquals(PairOutcome.NETWORK_ERROR, CabinetBinder(storage, api).pair("abcd-efgh"))
+        assertNull(storage.data)
+    }
+
     @Test fun `double submit while first in flight returns BUSY`() = runBlocking {
         val gate = CompletableDeferred<Unit>()
         val api = FakeApi { gate.await(); ok }

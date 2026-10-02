@@ -2,6 +2,7 @@ package com.respondent.pro.cabinet
 
 import retrofit2.HttpException
 import java.io.IOException
+import kotlin.coroutines.cancellation.CancellationException
 
 enum class PairOutcome { PAIRED, BUSY, INVALID_CODE, NETWORK_ERROR, REVOKED }
 
@@ -51,6 +52,11 @@ class CabinetBinder(
                 else -> PairOutcome.NETWORK_ERROR
             }
         } catch (e: IOException) {
+            PairOutcome.NETWORK_ERROR
+        } catch (e: CancellationException) {
+            throw e // отмена корутины — не ошибка привязки
+        } catch (e: Exception) {
+            // Кривой ответ сервера (JsonSyntaxException и т.п.) не должен ронять киоск
             PairOutcome.NETWORK_ERROR
         } finally {
             busy = false

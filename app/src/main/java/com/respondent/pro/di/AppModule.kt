@@ -75,6 +75,6 @@ object AppModule {
     @Provides
     @Singleton
     fun provideBindingStorage(@ApplicationContext context: Context): BindingStorage {
-        return EncryptedBindingStorage(context)
+        return EncryptedBindingStorage.create(context)
     }
 }
