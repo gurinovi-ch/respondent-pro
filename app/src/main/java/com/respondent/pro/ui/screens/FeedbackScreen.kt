@@ -1,18 +1,23 @@
 package com.respondent.pro.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.respondent.pro.ui.components.AutoResetTimer
+import com.respondent.pro.ui.components.CircleCloseButton
 import com.respondent.pro.ui.components.PinInput
 import com.respondent.pro.ui.components.StarRating
+import com.respondent.pro.ui.components.SystemIndicators
 import com.respondent.pro.ui.i18n.LocalAppStrings
 import com.respondent.pro.ui.theme.FooterColor
 import com.respondent.pro.ui.theme.TextPrimary
@@ -34,6 +39,21 @@ fun FeedbackScreen(
     var timerKey by remember { mutableStateOf(0) }
 
     Box(modifier = Modifier.fillMaxSize()) {
+        // Крестик отмены — появляется после выбора оценки, до нажатия «Готово».
+        // Отступ = 1% высоты экрана (как был у индикаторов)
+        if (rating > 0) {
+            val edgeMargin = (LocalConfiguration.current.screenHeightDp * 0.01f).dp
+            CircleCloseButton(
+                onClick = {
+                    viewModel.resetAll()
+                    timerKey++
+                },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = edgeMargin, end = edgeMargin)
+            )
+        }
+
         // Блок оценки — центр экрана по вертикали и горизонтали, ширина 80%
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -44,18 +64,13 @@ fun FeedbackScreen(
                 modifier = Modifier.fillMaxWidth(0.8f),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Organization name (long press for settings)
+                // Organization name (вход в настройки — через шестерёнку справа сверху)
                 Text(
                     text = settings.orgName.ifEmpty { "ORGANIZATION" },
                     fontSize = 21.sp,
                     color = TextSecondary,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .combinedClickable(
-                            onClick = {},
-                            onLongClick = { viewModel.showPin() }
-                        )
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -105,18 +120,29 @@ fun FeedbackScreen(
             }
         }
 
-        // Футер и таймер — у нижнего края экрана
+        // Футер, статус-блок и таймер — у нижнего края экрана
         Column(
             modifier = Modifier.align(Alignment.BottomCenter),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 text = "RESPONDENT.PRO",
-                fontSize = 12.sp,
+                fontSize = 18.sp,
                 color = FooterColor
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            // Равные отступы сверху и снизу от статус-блока;
+            // в сумме с статусом и таймером футер поднят ~ на 30% от прежнего отступа
+            Spacer(modifier = Modifier.height(9.dp))
+
+            SystemIndicators(onSettingsClick = {
+                viewModel.showPin()
+                // Таймер автосброса стартует заново: на ввод PIN-кода
+                // должно быть полное время, а не остаток от экрана оценки
+                timerKey++
+            })
+
+            Spacer(modifier = Modifier.height(9.dp))
 
             // Auto-reset timer
             AutoResetTimer(
@@ -132,8 +158,24 @@ fun FeedbackScreen(
 
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { viewModel.hidePin(); pinError = false },
+                containerColor = Color.White,
+                shape = RoundedCornerShape(10.dp),
                 title = { Text(strings.pinDialogTitle) },
                 text = {
+                    // Панели системной навигации скрыты и во время показа
+                    // PIN-диалога: окно диалога не наследует immersive-флаги
+                    // главного окна, и система возвращала панели обратно
+                    val dialogView = LocalView.current
+                    SideEffect {
+                        @Suppress("DEPRECATION")
+                        dialogView.rootView.systemUiVisibility =
+                            android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                                android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                                android.view.View.SYSTEM_UI_FLAG_FULLSCREEN or
+                                android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                                android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                                android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    }
                     PinInput(
                         pin = "",
                         onPinChanged = { pinError = false },

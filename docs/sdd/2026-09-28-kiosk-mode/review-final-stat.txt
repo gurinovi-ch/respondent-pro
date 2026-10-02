@@ -1,0 +1,24 @@
+﻿ app/build.gradle.kts                               |  11 +
+ app/src/main/AndroidManifest.xml                   |  52 ++++-
+ .../main/java/com/respondent/pro/MainActivity.kt   |  25 ++
+ .../main/java/com/respondent/pro/RespondentApp.kt  |   6 +
+ .../java/com/respondent/pro/kiosk/BootReceiver.kt  |  28 +++
+ .../com/respondent/pro/kiosk/KioskAdminReceiver.kt |   9 +
+ .../java/com/respondent/pro/kiosk/KioskConfig.kt   |  22 ++
+ .../java/com/respondent/pro/kiosk/KioskManager.kt  | 124 ++++++++++
+ .../java/com/respondent/pro/kiosk/KioskPolicy.kt   |  39 ++++
+ .../com/respondent/pro/kiosk/ProvisioningQr.kt     |  69 ++++++
+ .../com/respondent/pro/kiosk/RestartReceiver.kt    |  62 +++++
+ .../pro/kiosk/SettingsExcursionOverlay.kt          | 108 +++++++++
+ .../com/respondent/pro/kiosk/WatchdogScheduler.kt  |  84 +++++++
+ .../java/com/respondent/pro/ui/i18n/AppStrings.kt  |  56 +++++
+ .../respondent/pro/ui/screens/SettingsScreen.kt    | 259 ++++++++++++++++++++-
+ .../respondent/pro/viewmodel/SettingsViewModel.kt  |  16 +-
+ app/src/main/res/xml/device_admin.xml              |  12 +
+ app/src/main/res/xml/file_paths.xml                |   4 +
+ .../com/respondent/pro/kiosk/KioskPolicyTest.kt    |  43 ++++
+ .../pro/kiosk/ProvisioningQrEncodeTest.kt          |  30 +++
+ .../com/respondent/pro/kiosk/ProvisioningQrTest.kt |  53 +++++
+ .../respondent/pro/kiosk/WatchdogSchedulerTest.kt  |  26 +++
+ .../com/respondent/pro/ui/i18n/KioskStringsTest.kt |  24 ++
+ 23 files changed, 1159 insertions(+), 3 deletions(-)

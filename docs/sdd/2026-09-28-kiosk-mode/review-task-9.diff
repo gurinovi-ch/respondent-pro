@@ -1,0 +1,374 @@
+﻿diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index 9ca2ea0..472eae7 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -44,6 +44,12 @@ android {
+             )
+         }
+     }
++    testOptions {
++        unitTests {
++            // Robolectric: ╨╝╨░╨╜╨╕╤Д╨╡╤Б╤В/╤А╨╡╤Б╤Г╤А╤Б╤Л ╨┤╨╗╤П ╤О╨╜╨╕╤В-╤В╨╡╤Б╤В╨╛╨▓ (╤Б╨╝╨╛╤Г╨║ QR-╨║╨╛╨┤╨░)
++            isIncludeAndroidResources = true
++        }
++    }
+ }
+ 
+ dependencies {
+@@ -83,4 +89,6 @@ dependencies {
+     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+ 
+     testImplementation("junit:junit:4.13.2")
++    // ╨б╨╝╨╛╤Г╨║-╤В╨╡╤Б╤В encodeQr: ╨╜╤Г╨╢╨╡╨╜ ╤А╨╡╨░╨╗╤М╨╜╤Л╨╣ android.graphics.Bitmap
++    testImplementation("org.robolectric:robolectric:4.14.1")
+ }
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 03116eb..78bd55d 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -47,6 +47,15 @@
+                 <action android:name="com.respondent.pro.kiosk.ACTION_RESTART" />
+             </intent-filter>
+         </receiver>
++        <provider
++            android:name="androidx.core.content.FileProvider"
++            android:authorities="${applicationId}.fileprovider"
++            android:exported="false"
++            android:grantUriPermissions="true">
++            <meta-data
++                android:name="android.support.FILE_PROVIDER_PATHS"
++                android:resource="@xml/file_paths" />
++        </provider>
+         <activity
+             android:name=".MainActivity"
+             android:exported="true"
+diff --git a/app/src/main/java/com/respondent/pro/kiosk/ProvisioningQr.kt b/app/src/main/java/com/respondent/pro/kiosk/ProvisioningQr.kt
+index bfa9e83..9037686 100644
+--- a/app/src/main/java/com/respondent/pro/kiosk/ProvisioningQr.kt
++++ b/app/src/main/java/com/respondent/pro/kiosk/ProvisioningQr.kt
+@@ -1,10 +1,15 @@
+ package com.respondent.pro.kiosk
+ 
++import android.content.Context
++import android.content.Intent
+ import android.graphics.Bitmap
+ import android.util.Log
++import androidx.core.content.FileProvider
+ import com.google.gson.JsonObject
+ import com.google.zxing.BarcodeFormat
+ import com.journeyapps.barcodescanner.BarcodeEncoder
++import java.io.File
++import java.io.FileOutputStream
+ 
+ /**
+  * Payload ╨┤╨╗╤П Android Enterprise QR-╨┐╤А╨╛╨▓╨╕╨╢╨╕╨╜╨╕╨╜╨│╨░.
+@@ -37,4 +42,28 @@ object ProvisioningQr {
+         Log.e(TAG, "QR encode failed", e)
+         null
+     }
++
++    /** ╨б╨╛╤Е╤А╨░╨╜╤П╨╡╤В QR ╨▓ cacheDir ╨╕ ╨╛╤В╨║╤А╤Л╨▓╨░╨╡╤В ╨┤╨╕╨░╨╗╨╛╨│ ╨╛╤В╨┐╤А╨░╨▓╨║╨╕. false тАФ ╨┐╤А╨╕ ╨╛╤И╨╕╨▒╨║╨╡. */
++    fun shareQr(context: Context, payload: String): Boolean {
++        val bitmap = encodeQr(payload) ?: return false
++        return try {
++            val file = File(context.cacheDir, "provisioning_qr.png")
++            FileOutputStream(file).use { out ->
++                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
++            }
++            val uri = FileProvider.getUriForFile(
++                context, "${context.packageName}.fileprovider", file
++            )
++            val send = Intent(Intent.ACTION_SEND).apply {
++                type = "image/png"
++                putExtra(Intent.EXTRA_STREAM, uri)
++                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
++            }
++            context.startActivity(Intent.createChooser(send, "QR"))
++            true
++        } catch (e: Exception) {
++            Log.e(TAG, "shareQr failed", e)
++            false
++        }
++    }
+ }
+diff --git a/app/src/main/java/com/respondent/pro/ui/i18n/AppStrings.kt b/app/src/main/java/com/respondent/pro/ui/i18n/AppStrings.kt
+index 52980e2..2bb5d86 100644
+--- a/app/src/main/java/com/respondent/pro/ui/i18n/AppStrings.kt
++++ b/app/src/main/java/com/respondent/pro/ui/i18n/AppStrings.kt
+@@ -54,6 +54,12 @@ class AppStrings(
+     val kioskAdbSpoiler: String,
+     val kioskAdbSteps: String,
+     val kioskCmdHint: String,
++    val kioskQrSpoiler: String,
++    val kioskQrSteps: String,
++    val kioskQrSsidLabel: String,
++    val kioskQrPasswordLabel: String,
++    val kioskQrShowButton: String,
++    val kioskQrShareButton: String,
+     // ╨б╤В╨░╤А╤В╨╛╨▓╤Л╨╣ ╤Н╨║╤А╨░╨╜
+     val btnDone: String,
+     val defaultCallToAction: String,
+@@ -114,6 +120,17 @@ val ruStrings = AppStrings(
+         "3. ╨Я╨╛╨┤╨║╨╗╤О╤З╨╕╤В╨╡ ╨┐╨╗╨░╨╜╤И╨╡╤В ╨║ ╨Я╨Ъ ╨╕ ╨▓╤Л╨┐╨╛╨╗╨╜╨╕╤В╨╡ ╨║╨╛╨╝╨░╨╜╨┤╤Л ╨┐╨╛ ╨╛╨┤╨╜╨╛╨╣ (╨╜╨░╨╢╨░╤В╨╕╨╡ ╨║╨╛╨┐╨╕╤А╤Г╨╡╤В ╨║╨╛╨╝╨░╨╜╨┤╤Г).\n" +
+         "4. ╨Т╨╡╤А╨╜╨╕╤В╨╡╤Б╤М ╨▓ ╨┐╤А╨╕╨╗╨╛╨╢╨╡╨╜╨╕╨╡ тАФ ╤Б╤В╨░╤В╤Г╤Б ╨┤╨╛╨╗╨╢╨╡╨╜ ╤Б╤В╨░╤В╤М тЬЕ.",
+     kioskCmdHint = "╨Э╨░╨╢╨╝╨╕╤В╨╡ ╨╜╨░ ╤В╨╡╨║╤Б╤В, ╤З╤В╨╛╨▒╤Л ╤Б╨║╨╛╨┐╨╕╤А╨╛╨▓╨░╤В╤М",
++    kioskQrSpoiler = "╨Э╨░╤Б╤В╤А╨╛╨╣╨║╨░ ╤З╨╡╤А╨╡╨╖ QR-╨║╨╛╨┤ (╨▒╨╡╨╖ ╨Я╨Ъ)",
++    kioskQrSteps = "1. ╨Т╨▓╨╡╨┤╨╕╤В╨╡ Wi-Fi (╨╕╨╗╨╕ ╨╛╤Б╤В╨░╨▓╤М╤В╨╡ ╨┐╤Г╤Б╤В╤Л╨╝ тАФ ╤Б╨╡╤В╤М ╨▓╤Л╨▒╨╡╤А╤Г╤В ╨▓ ╨╝╨░╤Б╤В╨╡╤А╨╡) ╨╕ ╨╜╨░╨╢╨╝╨╕╤В╨╡ ┬л╨Я╨╛╨║╨░╨╖╨░╤В╤М QR-╨║╨╛╨┤┬╗.\n" +
++        "2. ╨б╨╛╤Е╤А╨░╨╜╨╕╤В╨╡/╨╛╤В╨┐╤А╨░╨▓╨╕╤В╨╡ QR ╨╕╨╖╨╛╨▒╤А╨░╨╢╨╡╨╜╨╕╨╡ ╨╜╨░ ╨▓╤В╨╛╤А╨╛╨╣ ╤Г╤Б╤В╤А╨╛╨╣╤Б╤В╨▓╨╛ (╤В╨╡╨╗╨╡╤Д╨╛╨╜).\n" +
++        "3. ╨б╨▒╤А╨╛╤Б╤М╤В╨╡ ╨┐╨╗╨░╨╜╤И╨╡╤В ╨┤╨╛ ╨╖╨░╨▓╨╛╨┤╤Б╨║╨╛╨│╨╛ ╨╜╨░╤Б╤В╤А╨╛╨╡╨║.\n" +
++        "4. ╨Э╨░ ╨┐╤А╨╕╨▓╨╡╤В╤Б╤В╨▓╨╡╨╜╨╜╨╛╨╝ ╤Н╨║╤А╨░╨╜╨╡: Android 7тАУ9 тАФ 6 ╨║╨░╤Б╨░╨╜╨╕╨╣ ╨┐╨╛ ╤Н╨║╤А╨░╨╜╤Г; Android 10+ тАФ ╨╕╨║╨╛╨╜╨║╨░ ╨┤╨╛╤Б╤В╤Г╨┐╨╜╨╛╤Б╤В╨╕ тЖТ ╨║╨░╨╝╨╡╤А╨░.\n" +
++        "5. ╨Э╨░╨▓╨╡╨┤╨╕╤В╨╡ ╨║╨░╨╝╨╡╤А╤Г ╨╜╨░ QR: ╨┐╨╗╨░╨╜╤И╨╡╤В ╤Б╨║╨░╤З╨░╨╡╤В APK, ╤Б╤В╨░╨╜╨╡╤В Device Owner ╨╕ ╨┐╨╛╨┤╨║╨╗╤О╤З╨╕╤В╤Б╤П ╨║ Wi-Fi.\n" +
++        "6. ╨Я╨╛╤Б╨╗╨╡ ╨╖╨░╨┐╤Г╤Б╨║╨░: ╨▓╤Л╨▒╨╡╤А╨╕╤В╨╡ ╨╗╨░╤Г╨╜╤З╨╡╤А (╨╛╨┤╨╕╨╜ ╤А╨░╨╖) ╨╕ ╨▓╤Л╨┤╨░╨╣╤В╨╡ ╤А╨░╨╖╤А╨╡╤И╨╡╨╜╨╕╨╡ ┬л╨Я╨╛╨▓╨╡╤А╤Е ╨┤╤А╤Г╨│╨╕╤Е ╨╛╨║╨╛╨╜┬╗.",
++    kioskQrSsidLabel = "Wi-Fi ╤Б╨╡╤В╤М (SSID)",
++    kioskQrPasswordLabel = "╨Я╨░╤А╨╛╨╗╤М Wi-Fi",
++    kioskQrShowButton = "╨Я╨╛╨║╨░╨╖╨░╤В╤М QR-╨║╨╛╨┤",
++    kioskQrShareButton = "╨Я╨╛╨┤╨╡╨╗╨╕╤В╤М╤Б╤П",
+     btnDone = "╨У╨╛╤В╨╛╨▓╨╛",
+     defaultCallToAction = "╨Я╨╛╨╢╨░╨╗╤Г╨╣╤Б╤В╨░ ╨╛╤Ж╨╡╨╜╨╕╤В╨╡ ╨╜╨░╤И╨╕ ╤Г╤Б╨╗╤Г╨│╨╕",
+     pinDialogTitle = "╨Т╨▓╨╡╨┤╨╕╤В╨╡ PIN",
+@@ -171,6 +188,17 @@ val enStrings = AppStrings(
+         "3. Connect the tablet to a PC and run the commands one by one (tap to copy).\n" +
+         "4. Return to the app тАФ status should become тЬЕ.",
+     kioskCmdHint = "Tap text to copy",
++    kioskQrSpoiler = "Setup via QR code (no PC)",
++    kioskQrSteps = "1. Enter Wi-Fi (or leave empty тАФ network is chosen in the wizard) and tap \"Show QR code\".\n" +
++        "2. Save/share the QR image to another device (phone).\n" +
++        "3. Factory-reset the tablet.\n" +
++        "4. On the welcome screen: Android 7тАУ9 тАФ tap the screen 6 times; Android 10+ тАФ accessibility icon тЖТ camera.\n" +
++        "5. Point the camera at the QR: the tablet downloads the APK, becomes Device Owner and connects to Wi-Fi.\n" +
++        "6. On first launch: choose the launcher (once) and grant \"Display over other apps\".",
++    kioskQrSsidLabel = "Wi-Fi network (SSID)",
++    kioskQrPasswordLabel = "Wi-Fi password",
++    kioskQrShowButton = "Show QR code",
++    kioskQrShareButton = "Share",
+     btnDone = "Done",
+     defaultCallToAction = "Please rate our services",
+     pinDialogTitle = "Enter PIN",
+diff --git a/app/src/main/java/com/respondent/pro/ui/screens/SettingsScreen.kt b/app/src/main/java/com/respondent/pro/ui/screens/SettingsScreen.kt
+index 210bbbe..5aaf120 100644
+--- a/app/src/main/java/com/respondent/pro/ui/screens/SettingsScreen.kt
++++ b/app/src/main/java/com/respondent/pro/ui/screens/SettingsScreen.kt
+@@ -6,6 +6,7 @@ import android.content.Context
+ import android.content.Intent
+ import android.provider.Settings
+ import androidx.compose.animation.AnimatedVisibility
++import androidx.compose.foundation.Image
+ import androidx.compose.foundation.background
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.*
+@@ -16,6 +17,7 @@ import androidx.compose.material3.*
+ import androidx.compose.runtime.*
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.graphics.asImageBitmap
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.LocalWindowInfo
+ import androidx.compose.ui.text.font.FontFamily
+@@ -28,6 +30,7 @@ import com.respondent.pro.data.repository.AppSettings
+ import com.respondent.pro.kiosk.KioskConfig
+ import com.respondent.pro.kiosk.KioskManager
+ import com.respondent.pro.kiosk.KioskStatus
++import com.respondent.pro.kiosk.ProvisioningQr
+ import com.respondent.pro.kiosk.SettingsExcursionOverlay
+ import com.respondent.pro.ui.i18n.LocalAppStrings
+ import com.respondent.pro.viewmodel.ChatIdResult
+@@ -54,6 +57,19 @@ fun SettingsScreen(
+     var instructionsExpanded by remember { mutableStateOf(false) }
+     var kioskExpanded by remember { mutableStateOf(false) }
+     var adbExpanded by remember { mutableStateOf(false) }
++    var qrExpanded by remember { mutableStateOf(false) }
++    var qrSsid by remember { mutableStateOf("") }
++    var qrPassword by remember { mutableStateOf("") }
++    var qrBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
++
++    // Payload QR-╨┐╤А╨╛╨▓╨╕╨╢╨╕╨╜╨╕╨╜╨│╨░ ╤Б╨╛╨▒╨╕╤А╨░╨╡╤В╤Б╤П ╨╛╨┤╨╕╨╜╨░╨║╨╛╨▓╨╛ ╨┤╨╗╤П ╨┐╨╛╨║╨░╨╖╨░ ╨╕ ╨╛╤В╨┐╤А╨░╨▓╨║╨╕
++    val buildQrPayload = {
++        ProvisioningQr.buildPayload(
++            KioskConfig.APK_DOWNLOAD_URL,
++            qrSsid.ifBlank { null },
++            qrPassword.ifBlank { null }
++        )
++    }
+ 
+     val kioskStatus by viewModel.kioskStatus.collectAsState()
+     LaunchedEffect(Unit) { viewModel.refreshKioskStatus() }
+@@ -499,9 +515,44 @@ fun SettingsScreen(
+                 expanded = kioskExpanded,
+                 onToggle = { kioskExpanded = !kioskExpanded },
+                 adbExpanded = adbExpanded,
+-                onToggleAdb = { adbExpanded = !adbExpanded }
++                onToggleAdb = { adbExpanded = !adbExpanded },
++                qrExpanded = qrExpanded,
++                onToggleQr = { qrExpanded = !qrExpanded },
++                qrSsid = qrSsid,
++                onSsidChange = { qrSsid = it },
++                qrPassword = qrPassword,
++                onPasswordChange = { qrPassword = it },
++                onShowQr = { qrBitmap = ProvisioningQr.encodeQr(buildQrPayload()) },
++                qrBitmap = qrBitmap,
++                onDismissQr = { qrBitmap = null },
++                onShareQr = { ProvisioningQr.shareQr(context, buildQrPayload()) }
+             )
+ 
++            // ╨Ф╨╕╨░╨╗╨╛╨│ ╤Б QR-╨╕╨╖╨╛╨▒╤А╨░╨╢╨╡╨╜╨╕╨╡╨╝
++            qrBitmap?.let { bmp ->
++                AlertDialog(
++                    onDismissRequest = { qrBitmap = null },
++                    title = { Text(strings.kioskQrShowButton) },
++                    text = {
++                        Image(
++                            bitmap = bmp.asImageBitmap(),
++                            contentDescription = strings.kioskQrShowButton,
++                            modifier = Modifier.fillMaxWidth()
++                        )
++                    },
++                    confirmButton = {
++                        TextButton(onClick = { ProvisioningQr.shareQr(context, buildQrPayload()) }) {
++                            Text(strings.kioskQrShareButton)
++                        }
++                    },
++                    dismissButton = {
++                        TextButton(onClick = { qrBitmap = null }) {
++                            Text(strings.btnCancel)
++                        }
++                    }
++                )
++            }
++
+             Spacer(modifier = Modifier.height(24.dp))
+         }
+     }
+@@ -726,7 +777,17 @@ private fun KioskCard(
+     expanded: Boolean,
+     onToggle: () -> Unit,
+     adbExpanded: Boolean,
+-    onToggleAdb: () -> Unit
++    onToggleAdb: () -> Unit,
++    qrExpanded: Boolean,
++    onToggleQr: () -> Unit,
++    qrSsid: String,
++    onSsidChange: (String) -> Unit,
++    qrPassword: String,
++    onPasswordChange: (String) -> Unit,
++    onShowQr: () -> Unit,
++    qrBitmap: android.graphics.Bitmap?,
++    onDismissQr: () -> Unit,
++    onShareQr: () -> Unit
+ ) {
+     val strings = LocalAppStrings.current
+     val context = LocalContext.current
+@@ -808,6 +869,53 @@ private fun KioskCard(
+                             }
+                         }
+                     }
++
++                    // тЦ╢ ╨Э╨░╤Б╤В╤А╨╛╨╣╨║╨░ ╤З╨╡╤А╨╡╨╖ QR-╨║╨╛╨┤
++                    Spacer(modifier = Modifier.height(12.dp))
++                    Row(
++                        modifier = Modifier
++                            .fillMaxWidth()
++                            .clickable { onToggleQr() },
++                        horizontalArrangement = Arrangement.SpaceBetween
++                    ) {
++                        Text(
++                            text = strings.kioskQrSpoiler,
++                            style = MaterialTheme.typography.titleSmall
++                        )
++                        Text(text = if (qrExpanded) "тЦ▓" else "тЦ╝")
++                    }
++
++                    AnimatedVisibility(visible = qrExpanded) {
++                        Column(modifier = Modifier.padding(top = 8.dp)) {
++                            Text(
++                                text = strings.kioskQrSteps,
++                                style = MaterialTheme.typography.bodySmall
++                            )
++                            Spacer(modifier = Modifier.height(8.dp))
++                            OutlinedTextField(
++                                value = qrSsid,
++                                onValueChange = onSsidChange,
++                                label = { Text(strings.kioskQrSsidLabel) },
++                                modifier = Modifier.fillMaxWidth(),
++                                singleLine = true
++                            )
++                            OutlinedTextField(
++                                value = qrPassword,
++                                onValueChange = onPasswordChange,
++                                label = { Text(strings.kioskQrPasswordLabel) },
++                                modifier = Modifier.fillMaxWidth(),
++                                singleLine = true
++                            )
++                            Button(
++                                onClick = onShowQr,
++                                modifier = Modifier
++                                    .fillMaxWidth()
++                                    .padding(top = 8.dp)
++                            ) {
++                                Text(strings.kioskQrShowButton)
++                            }
++                        }
++                    }
+                 }
+             }
+         }
+diff --git a/app/src/main/res/xml/file_paths.xml b/app/src/main/res/xml/file_paths.xml
+new file mode 100644
+index 0000000..d10b37d
+--- /dev/null
++++ b/app/src/main/res/xml/file_paths.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<paths>
++    <cache-path name="qr_cache" path="." />
++</paths>
+diff --git a/app/src/test/java/com/respondent/pro/kiosk/ProvisioningQrEncodeTest.kt b/app/src/test/java/com/respondent/pro/kiosk/ProvisioningQrEncodeTest.kt
+new file mode 100644
+index 0000000..84448cb
+--- /dev/null
++++ b/app/src/test/java/com/respondent/pro/kiosk/ProvisioningQrEncodeTest.kt
+@@ -0,0 +1,30 @@
++package com.respondent.pro.kiosk
++
++import android.app.Application
++import org.junit.Assert.assertNotNull
++import org.junit.Assert.assertTrue
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++
++/**
++ * ╨б╨╝╨╛╤Г╨║-╨┐╤А╨╛╨▓╨╡╤А╨║╨░ R7: payload ╤Б╨╛╨▒╨╕╤А╨░╨╡╤В╤Б╤П ╨╕ ╨║╨╛╨┤╨╕╤А╤Г╨╡╤В╤Б╤П ╨▓ QR-╨╕╨╖╨╛╨▒╤А╨░╨╢╨╡╨╜╨╕╨╡.
++ * Robolectric ╨╛╨▒╤П╨╖╨░╤В╨╡╨╗╨╡╨╜ тАФ encodeQr ╨╕╤Б╨┐╨╛╨╗╤М╨╖╤Г╨╡╤В android.graphics.Bitmap.
++ */
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [29], application = Application::class)
++class ProvisioningQrEncodeTest {
++
++    private val url = "https://example.com/releases/latest/download/RESPONDENT.PRO.apk"
++
++    @Test
++    fun `encodeQr returns non-null bitmap for built payload`() {
++        val payload = ProvisioningQr.buildPayload(url, "MyNet", "secret1")
++        val bitmap = ProvisioningQr.encodeQr(payload)
++        assertNotNull("encodeQr must return a non-null bitmap", bitmap)
++        val bmp = bitmap!!
++        assertTrue(bmp.width > 0)
++        assertTrue(bmp.height > 0)
++    }
++}
+diff --git a/app/src/test/java/com/respondent/pro/ui/i18n/KioskStringsTest.kt b/app/src/test/java/com/respondent/pro/ui/i18n/KioskStringsTest.kt
+index 801fc5b..46c9038 100644
+--- a/app/src/test/java/com/respondent/pro/ui/i18n/KioskStringsTest.kt
++++ b/app/src/test/java/com/respondent/pro/ui/i18n/KioskStringsTest.kt
+@@ -7,7 +7,9 @@ class KioskStringsTest {
+ 
+     private fun kioskValues(s: AppStrings) = listOf(
+         s.kioskTitle, s.kioskStatusOwner, s.kioskStatusLock, s.kioskStatusNoOwner,
+-        s.kioskAdbSpoiler, s.kioskAdbSteps, s.kioskCmdHint
++        s.kioskAdbSpoiler, s.kioskAdbSteps, s.kioskCmdHint,
++        s.kioskQrSpoiler, s.kioskQrSteps, s.kioskQrSsidLabel,
++        s.kioskQrPasswordLabel, s.kioskQrShowButton, s.kioskQrShareButton
+     )
+ 
+     @Test

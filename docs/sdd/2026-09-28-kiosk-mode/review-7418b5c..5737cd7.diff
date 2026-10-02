@@ -1,0 +1,43 @@
+# Review package: 7418b5c..5737cd7
+
+## Commits
+5737cd7 fix(kiosk): remove camera permission surface injected by zxing AAR
+
+## Files changed
+ app/src/main/AndroidManifest.xml | 11 ++++++++++-
+ 1 file changed, 10 insertions(+), 1 deletion(-)
+
+## Diff
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index deb3cc7..8efbaa6 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -1,18 +1,27 @@
+ <?xml version="1.0" encoding="utf-8"?>
+-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    xmlns:tools="http://schemas.android.com/tools">
+     <uses-permission android:name="android.permission.INTERNET" />
+     <uses-permission android:name="android.permission.VIBRATE" />
+     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+ 
++    <!-- zxing-android-embedded (encoding-only use) injects a camera permission/feature
++         surface the app never uses; strip it from the merged manifest. -->
++    <uses-permission android:name="android.permission.CAMERA" tools:node="remove" />
++    <uses-feature android:name="android.hardware.camera" tools:node="remove" />
++    <uses-feature android:name="android.hardware.camera.front" tools:node="remove" />
++    <uses-feature android:name="android.hardware.camera.autofocus" tools:node="remove" />
++    <uses-feature android:name="android.hardware.camera.flash" tools:node="remove" />
++
+     <application
+         android:name=".RespondentApp"
+         android:allowBackup="false"
+         android:label="RESPONDENT.PRO"
+         android:supportsRtl="true"
+         android:theme="@style/Theme.RespondentPro">
+         <receiver
+             android:name=".kiosk.KioskAdminReceiver"
+             android:exported="true"
+             android:permission="android.permission.BIND_DEVICE_ADMIN">

@@ -1,8 +1,15 @@
 package com.respondent.pro.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import android.view.ViewTreeObserver
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -12,14 +19,28 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import com.respondent.pro.data.repository.AppSettings
+import com.respondent.pro.kiosk.KioskConfig
+import com.respondent.pro.kiosk.KioskManager
+import com.respondent.pro.kiosk.KioskStatus
+import com.respondent.pro.kiosk.ProvisioningQr
+import com.respondent.pro.kiosk.QrCheck
+import com.respondent.pro.kiosk.QrDiagnosticsResult
+import com.respondent.pro.kiosk.SettingsExcursionOverlay
+import com.respondent.pro.ui.i18n.AppStrings
 import com.respondent.pro.ui.i18n.LocalAppStrings
 import com.respondent.pro.viewmodel.ChatIdResult
 import com.respondent.pro.viewmodel.SettingsViewModel
@@ -33,6 +54,7 @@ fun SettingsScreen(
     val settings by viewModel.settings.collectAsState()
     var localSettings by remember(settings.copy(language = "")) { mutableStateOf(settings) }
     val context = LocalContext.current
+    val kioskManager = viewModel.kiosk
     val strings = LocalAppStrings.current
     var langExpanded by remember { mutableStateOf(false) }
     var sendMethodExpanded by remember { mutableStateOf(false) }
@@ -42,6 +64,64 @@ fun SettingsScreen(
     val isDetectingChatId by viewModel.isDetectingChatId.collectAsState()
 
     var instructionsExpanded by remember { mutableStateOf(false) }
+    var kioskExpanded by remember { mutableStateOf(false) }
+    var adbExpanded by remember { mutableStateOf(false) }
+    var qrExpanded by remember { mutableStateOf(false) }
+    var qrSsid by remember { mutableStateOf("") }
+    var qrPassword by remember { mutableStateOf("") }
+    var qrBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    var qrDiagExpanded by remember { mutableStateOf(false) }
+
+    // Payload QR-провижининга собирается одинаково для показа и отправки
+    val buildQrPayload = {
+        ProvisioningQr.buildPayload(
+            KioskConfig.APK_DOWNLOAD_URL,
+            KioskConfig.APK_SIGNATURE_SHA256,
+            qrSsid.ifBlank { null },
+            qrPassword.ifBlank { null }
+        )
+    }
+
+    val kioskStatus by viewModel.kioskStatus.collectAsState()
+    val qrDiagnostics by viewModel.qrDiagnostics.collectAsState()
+    val isRunningQrDiagnostics by viewModel.isRunningQrDiagnostics.collectAsState()
+    LaunchedEffect(Unit) { viewModel.refreshKioskStatus() }
+
+    // В настройках возвращаем навигационную панель: её кнопка-шеврон скрывает
+    // системную клавиатуру (на главном экране панели нет). Статус-бар остаётся
+    // скрытым. Показываем повторно при возврате фокуса (после PIN-диалога и
+    // экскурсий в системные настройки), при выходе — скрываем.
+    val navBarView = LocalView.current
+    DisposableEffect(Unit) {
+        val activity = context as? com.respondent.pro.MainActivity
+        val controller = activity?.let {
+            WindowCompat.getInsetsController(it.window, navBarView)
+        }
+        fun showNav() {
+            controller?.show(WindowInsetsCompat.Type.navigationBars())
+        }
+        showNav()
+        navBarView.post { showNav() }
+        val focusListener = ViewTreeObserver.OnWindowFocusChangeListener { hasFocus ->
+            if (hasFocus) showNav()
+        }
+        navBarView.viewTreeObserver.addOnWindowFocusChangeListener(focusListener)
+        onDispose {
+            navBarView.viewTreeObserver.removeOnWindowFocusChangeListener(focusListener)
+            activity?.hideSystemBars()
+        }
+    }
+
+    // При входе в настройки системная клавиатура скрывается (оставалась
+    // после ввода PIN); снова появляется только по тапу на текстовое поле
+    val imeView = LocalView.current
+    LaunchedEffect(Unit) {
+        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE)
+            as android.view.inputmethod.InputMethodManager
+        imeView.post {
+            imeView.windowToken?.let { imm.hideSoftInputFromWindow(it, 0) }
+        }
+    }
 
     // Auto-fill Chat ID when detected
     LaunchedEffect(chatIdResult) {
@@ -54,17 +134,47 @@ fun SettingsScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Старт — закреплён сверху, всегда виден
-        Button(
-            onClick = {
-                viewModel.saveSettings(localSettings)
-                onStart()
-            },
+        // Верхняя панель действий: Настройки Android (30%) + отступ (5%) +
+        // Старт (65%) — занимают слот бывшей кнопки «Старт»
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp, vertical = 12.dp)
         ) {
-            Text(strings.btnStart)
+            Button(
+                onClick = {
+                    val activity = context as? android.app.Activity
+                    if (activity != null) {
+                        // Флаг excursion поднимаем ДО ухода из foreground (контракт M3)
+                        kioskManager.beginExcursion(activity)
+                    }
+                    if (SettingsExcursionOverlay.canDraw(context)) {
+                        context.startActivity(Intent(Settings.ACTION_SETTINGS))
+                        SettingsExcursionOverlay.show(context)
+                    } else {
+                        // Разрешения нет — один раз просим его выдать (spec §6)
+                        SettingsExcursionOverlay.openPermissionScreen(context)
+                    }
+                },
+                modifier = Modifier.weight(0.30f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.White,
+                    contentColor = MaterialTheme.colorScheme.primary
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+            ) {
+                Text(strings.androidSettingsLabel, maxLines = 1)
+            }
+            Spacer(modifier = Modifier.weight(0.05f))
+            Button(
+                onClick = {
+                    viewModel.saveSettings(localSettings)
+                    onStart()
+                },
+                modifier = Modifier.weight(0.65f)
+            ) {
+                Text(strings.btnStart)
+            }
         }
 
         Column(
@@ -202,20 +312,7 @@ fun SettingsScreen(
                 )
             }
 
-            // 10. Настройки Android
-            Button(
-                onClick = {
-                    context.startActivity(Intent(Settings.ACTION_SETTINGS))
-                },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors()
-            ) {
-                Text(strings.androidSettingsLabel)
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // 11. Способ отправки — выделенный блок внизу
+            // 10. Способ отправки — выделенный блок внизу
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -467,6 +564,58 @@ fun SettingsScreen(
                 sendMethod = localSettings.sendMethod
             )
 
+            // 13. Инфокиоск — статус и инструкции
+            KioskCard(
+                status = kioskStatus,
+                expanded = kioskExpanded,
+                onToggle = { kioskExpanded = !kioskExpanded },
+                onDisableKiosk = {
+                    (context as? android.app.Activity)?.let { viewModel.disableKiosk(it) }
+                },
+                adbExpanded = adbExpanded,
+                onToggleAdb = { adbExpanded = !adbExpanded },
+                qrExpanded = qrExpanded,
+                onToggleQr = { qrExpanded = !qrExpanded },
+                qrSsid = qrSsid,
+                onSsidChange = { qrSsid = it },
+                qrPassword = qrPassword,
+                onPasswordChange = { qrPassword = it },
+                onShowQr = { qrBitmap = ProvisioningQr.encodeQr(buildQrPayload()) },
+                qrBitmap = qrBitmap,
+                onDismissQr = { qrBitmap = null },
+                onShareQr = { ProvisioningQr.shareQr(context, buildQrPayload()) },
+                qrDiagExpanded = qrDiagExpanded,
+                onToggleQrDiag = { qrDiagExpanded = !qrDiagExpanded },
+                qrDiagnostics = qrDiagnostics,
+                isRunningQrDiagnostics = isRunningQrDiagnostics,
+                onRunQrDiagnostics = { viewModel.runQrDiagnostics() }
+            )
+
+            // Диалог с QR-изображением
+            qrBitmap?.let { bmp ->
+                AlertDialog(
+                    onDismissRequest = { qrBitmap = null },
+                    title = { Text(strings.kioskQrShowButton) },
+                    text = {
+                        Image(
+                            bitmap = bmp.asImageBitmap(),
+                            contentDescription = strings.kioskQrShowButton,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { ProvisioningQr.shareQr(context, buildQrPayload()) }) {
+                            Text(strings.kioskQrShareButton)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { qrBitmap = null }) {
+                            Text(strings.btnCancel)
+                        }
+                    }
+                )
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
@@ -683,4 +832,311 @@ private fun EmailInstructions() {
             )
         }
     }
+}
+
+@Composable
+private fun KioskCard(
+    status: KioskStatus?,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onDisableKiosk: () -> Unit,
+    adbExpanded: Boolean,
+    onToggleAdb: () -> Unit,
+    qrExpanded: Boolean,
+    onToggleQr: () -> Unit,
+    qrSsid: String,
+    onSsidChange: (String) -> Unit,
+    qrPassword: String,
+    onPasswordChange: (String) -> Unit,
+    onShowQr: () -> Unit,
+    qrBitmap: android.graphics.Bitmap?,
+    onDismissQr: () -> Unit,
+    onShareQr: () -> Unit,
+    qrDiagExpanded: Boolean,
+    onToggleQrDiag: () -> Unit,
+    qrDiagnostics: QrDiagnosticsResult?,
+    isRunningQrDiagnostics: Boolean,
+    onRunQrDiagnostics: () -> Unit
+) {
+    val strings = LocalAppStrings.current
+    val context = LocalContext.current
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onToggle() },
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = strings.kioskTitle,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = if (expanded) "▲" else "▼",
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+
+            // Статус виден всегда, даже свёрнутым
+            Text(
+                text = when {
+                    status == null -> ""
+                    status.deviceOwner && status.lockTaskPermitted ->
+                        "${strings.kioskStatusOwner}\n${strings.kioskStatusLock}"
+                    status.deviceOwner -> strings.kioskStatusOwner
+                    else -> strings.kioskStatusNoOwner
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (status?.deviceOwner == true) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.error
+                },
+                modifier = Modifier.padding(top = 4.dp)
+            )
+
+            // Отключение режима киоска — только при выданном Device Owner,
+            // с подтверждением (снятие DO: clearDeviceOwnerApp, без стирания данных)
+            if (status?.deviceOwner == true) {
+                var showDisableConfirm by remember { mutableStateOf(false) }
+                Button(
+                    onClick = { showDisableConfirm = true },
+                    modifier = Modifier.padding(top = 8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) {
+                    Text(strings.kioskDisableBtn)
+                }
+                if (showDisableConfirm) {
+                    AlertDialog(
+                        onDismissRequest = { showDisableConfirm = false },
+                        title = { Text(strings.kioskDisableTitle) },
+                        text = { Text(strings.kioskDisableMessage) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showDisableConfirm = false
+                                onDisableKiosk()
+                            }) {
+                                Text(strings.kioskDisableConfirm)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showDisableConfirm = false }) {
+                                Text(strings.btnCancel)
+                            }
+                        }
+                    )
+                }
+            }
+
+            AnimatedVisibility(visible = expanded) {
+                Column(modifier = Modifier.padding(top = 12.dp)) {
+                    // ▶ Настройка через ADB
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onToggleAdb() },
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = strings.kioskAdbSpoiler,
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        Text(text = if (adbExpanded) "▲" else "▼")
+                    }
+
+                    AnimatedVisibility(visible = adbExpanded) {
+                        Column(modifier = Modifier.padding(top = 8.dp)) {
+                            Text(
+                                text = strings.kioskAdbSteps,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            // Ссылка на APK — копируется по нажатию
+                            CommandText(text = KioskConfig.APK_DOWNLOAD_URL)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = strings.kioskCmdHint,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            KioskConfig.adbCommands().forEach { cmd ->
+                                CommandText(text = cmd)
+                            }
+                        }
+                    }
+
+                    // ▶ Настройка через QR-код
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onToggleQr() },
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = strings.kioskQrSpoiler,
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        Text(text = if (qrExpanded) "▲" else "▼")
+                    }
+
+                    AnimatedVisibility(visible = qrExpanded) {
+                        Column(modifier = Modifier.padding(top = 8.dp)) {
+                            Text(
+                                text = strings.kioskQrSteps,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = qrSsid,
+                                onValueChange = onSsidChange,
+                                label = { Text(strings.kioskQrSsidLabel) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = qrPassword,
+                                onValueChange = onPasswordChange,
+                                label = { Text(strings.kioskQrPasswordLabel) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            Button(
+                                onClick = onShowQr,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp)
+                            ) {
+                                Text(strings.kioskQrShowButton)
+                            }
+                        }
+                    }
+
+                    // ▶ Проверка QR-провижининга
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onToggleQrDiag() },
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = strings.kioskQrDiagSpoiler,
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                        Text(text = if (qrDiagExpanded) "▲" else "▼")
+                    }
+
+                    AnimatedVisibility(visible = qrDiagExpanded) {
+                        Column(modifier = Modifier.padding(top = 8.dp)) {
+                            Button(
+                                onClick = onRunQrDiagnostics,
+                                enabled = !isRunningQrDiagnostics,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = if (isRunningQrDiagnostics) {
+                                        strings.kioskQrDiagRunning
+                                    } else {
+                                        strings.kioskQrDiagRun
+                                    }
+                                )
+                            }
+
+                            qrDiagnostics?.let { diag ->
+                                diag.results.forEach { item ->
+                                    Row(modifier = Modifier.padding(top = 4.dp)) {
+                                        Text(
+                                            text = if (item.ok) "✓" else "✗",
+                                            color = if (item.ok) {
+                                                MaterialTheme.colorScheme.primary
+                                            } else {
+                                                MaterialTheme.colorScheme.error
+                                            }
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = diagTitle(strings, item.check),
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                    if (!item.ok && item.detail != null) {
+                                        Text(
+                                            text = item.detail,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.padding(start = 24.dp)
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = if (diag.ready) {
+                                        strings.kioskQrDiagReady
+                                    } else {
+                                        val failed = diag.firstFailed
+                                            ?.let { diagTitle(strings, it.check) }.orEmpty()
+                                        "${strings.kioskQrDiagNotReady}: $failed"
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (diag.ready) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.error
+                                    },
+                                    modifier = Modifier.padding(top = 8.dp)
+                                )
+                            }
+
+                            Text(
+                                text = strings.kioskQrDiagNote,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun diagTitle(strings: AppStrings, check: QrCheck): String = when (check) {
+    QrCheck.API_LEVEL -> strings.kioskQrDiagApi
+    QrCheck.QR_SCANNER -> strings.kioskQrDiagScanner
+    QrCheck.MANAGED_PROVISIONING -> strings.kioskQrDiagMp
+    QrCheck.NETWORK -> strings.kioskQrDiagNetwork
+    QrCheck.PAYLOAD -> strings.kioskQrDiagPayload
+    QrCheck.APK_URL -> strings.kioskQrDiagUrl
+}
+
+@Composable
+private fun CommandText(text: String) {
+    val context = LocalContext.current
+    Text(
+        text = text,
+        fontFamily = FontFamily.Monospace,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                val clipboard =
+                    context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("adb", text))
+            }
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(8.dp)
+    )
 }

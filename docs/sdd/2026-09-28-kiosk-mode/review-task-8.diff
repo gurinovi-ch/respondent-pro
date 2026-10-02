@@ -1,0 +1,288 @@
+﻿diff --git a/app/src/main/java/com/respondent/pro/ui/i18n/AppStrings.kt b/app/src/main/java/com/respondent/pro/ui/i18n/AppStrings.kt
+index 4c887bf..52980e2 100644
+--- a/app/src/main/java/com/respondent/pro/ui/i18n/AppStrings.kt
++++ b/app/src/main/java/com/respondent/pro/ui/i18n/AppStrings.kt
+@@ -46,6 +46,14 @@ class AppStrings(
+     val smtpSslLabel: String,
+     // ╨Ш╨╜╤Б╤В╤А╤Г╨║╤Ж╨╕╨╕
+     val instructionsTitle: String,
++    // ╨Ш╨╜╤Д╨╛╨║╨╕╨╛╤Б╨║
++    val kioskTitle: String,
++    val kioskStatusOwner: String,
++    val kioskStatusLock: String,
++    val kioskStatusNoOwner: String,
++    val kioskAdbSpoiler: String,
++    val kioskAdbSteps: String,
++    val kioskCmdHint: String,
+     // ╨б╤В╨░╤А╤В╨╛╨▓╤Л╨╣ ╤Н╨║╤А╨░╨╜
+     val btnDone: String,
+     val defaultCallToAction: String,
+@@ -96,6 +104,16 @@ val ruStrings = AppStrings(
+     smtpPortLabel = "SMTP ╨┐╨╛╤А╤В",
+     smtpSslLabel = "SSL",
+     instructionsTitle = "╨Ш╨╜╤Б╤В╤А╤Г╨║╤Ж╨╕╨╕",
++    kioskTitle = "╨Ш╨Э╨д╨Ю╨Ъ╨Ш╨Ю╨б╨Ъ",
++    kioskStatusOwner = "тЬЕ Device Owner ╨▓╤Л╨┤╨░╨╜",
++    kioskStatusLock = "Lock Task ╨░╨║╤В╨╕╨▓╨╡╨╜",
++    kioskStatusNoOwner = "тЪая╕П Device Owner ╨╜╨╡ ╨▓╤Л╨┤╨░╨╜ тАФ ╨┐╨╛╨╗╨╜╨░╤П ╨▒╨╗╨╛╨║╨╕╤А╨╛╨▓╨║╨░ ╨╜╨╡╨┤╨╛╤Б╤В╤Г╨┐╨╜╨░",
++    kioskAdbSpoiler = "╨Э╨░╤Б╤В╤А╨╛╨╣╨║╨░ ╤З╨╡╤А╨╡╨╖ ADB (╤Б ╨Я╨Ъ)",
++    kioskAdbSteps = "1. ╨Т╨║╨╗╤О╤З╨╕╤В╨╡ USB-╨╛╤В╨╗╨░╨┤╨║╤Г: ╨Я╨░╤А╨░╨╝╨╡╤В╤А╤Л тЖТ ╨Ю ╤В╨╡╨╗╨╡╤Д╨╛╨╜╨╡ тЖТ 7 ╨║╨░╤Б╨░╨╜╨╕╨╣ ╨┐╨╛ ┬л╨Э╨╛╨╝╨╡╤А╤Г ╤Б╨▒╨╛╤А╨║╨╕┬╗.\n" +
++        "2. ╨б╨║╨░╤З╨░╨╣╤В╨╡ APK ╨┐╨╛ ╤Б╤Б╤Л╨╗╨║╨╡ ╨╜╨╕╨╢╨╡ (╨╜╨░╨╢╨░╤В╨╕╨╡ ╨║╨╛╨┐╨╕╤А╤Г╨╡╤В).\n" +
++        "3. ╨Я╨╛╨┤╨║╨╗╤О╤З╨╕╤В╨╡ ╨┐╨╗╨░╨╜╤И╨╡╤В ╨║ ╨Я╨Ъ ╨╕ ╨▓╤Л╨┐╨╛╨╗╨╜╨╕╤В╨╡ ╨║╨╛╨╝╨░╨╜╨┤╤Л ╨┐╨╛ ╨╛╨┤╨╜╨╛╨╣ (╨╜╨░╨╢╨░╤В╨╕╨╡ ╨║╨╛╨┐╨╕╤А╤Г╨╡╤В ╨║╨╛╨╝╨░╨╜╨┤╤Г).\n" +
++        "4. ╨Т╨╡╤А╨╜╨╕╤В╨╡╤Б╤М ╨▓ ╨┐╤А╨╕╨╗╨╛╨╢╨╡╨╜╨╕╨╡ тАФ ╤Б╤В╨░╤В╤Г╤Б ╨┤╨╛╨╗╨╢╨╡╨╜ ╤Б╤В╨░╤В╤М тЬЕ.",
++    kioskCmdHint = "╨Э╨░╨╢╨╝╨╕╤В╨╡ ╨╜╨░ ╤В╨╡╨║╤Б╤В, ╤З╤В╨╛╨▒╤Л ╤Б╨║╨╛╨┐╨╕╤А╨╛╨▓╨░╤В╤М",
+     btnDone = "╨У╨╛╤В╨╛╨▓╨╛",
+     defaultCallToAction = "╨Я╨╛╨╢╨░╨╗╤Г╨╣╤Б╤В╨░ ╨╛╤Ж╨╡╨╜╨╕╤В╨╡ ╨╜╨░╤И╨╕ ╤Г╤Б╨╗╤Г╨│╨╕",
+     pinDialogTitle = "╨Т╨▓╨╡╨┤╨╕╤В╨╡ PIN",
+@@ -143,6 +161,16 @@ val enStrings = AppStrings(
+     smtpPortLabel = "SMTP port",
+     smtpSslLabel = "SSL",
+     instructionsTitle = "Instructions",
++    kioskTitle = "KIOSK MODE",
++    kioskStatusOwner = "тЬЕ Device Owner granted",
++    kioskStatusLock = "Lock Task active",
++    kioskStatusNoOwner = "тЪая╕П Device Owner not granted тАФ full lockdown unavailable",
++    kioskAdbSpoiler = "Setup via ADB (from PC)",
++    kioskAdbSteps = "1. Enable USB debugging: Settings тЖТ About tablet тЖТ tap \"Build number\" 7 times.\n" +
++        "2. Download the APK via the link below (tap to copy).\n" +
++        "3. Connect the tablet to a PC and run the commands one by one (tap to copy).\n" +
++        "4. Return to the app тАФ status should become тЬЕ.",
++    kioskCmdHint = "Tap text to copy",
+     btnDone = "Done",
+     defaultCallToAction = "Please rate our services",
+     pinDialogTitle = "Enter PIN",
+diff --git a/app/src/main/java/com/respondent/pro/ui/screens/SettingsScreen.kt b/app/src/main/java/com/respondent/pro/ui/screens/SettingsScreen.kt
+index 2af07bc..210bbbe 100644
+--- a/app/src/main/java/com/respondent/pro/ui/screens/SettingsScreen.kt
++++ b/app/src/main/java/com/respondent/pro/ui/screens/SettingsScreen.kt
+@@ -1,8 +1,12 @@
+ package com.respondent.pro.ui.screens
+ 
++import android.content.ClipData
++import android.content.ClipboardManager
++import android.content.Context
+ import android.content.Intent
+ import android.provider.Settings
+ import androidx.compose.animation.AnimatedVisibility
++import androidx.compose.foundation.background
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.*
+ import androidx.compose.foundation.rememberScrollState
+@@ -14,13 +18,16 @@ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.LocalWindowInfo
++import androidx.compose.ui.text.font.FontFamily
+ import androidx.compose.ui.text.input.KeyboardType
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.foundation.layout.WindowInsets
+ import androidx.compose.foundation.layout.imePadding
+ import androidx.compose.foundation.layout.windowInsetsPadding
+ import com.respondent.pro.data.repository.AppSettings
++import com.respondent.pro.kiosk.KioskConfig
+ import com.respondent.pro.kiosk.KioskManager
++import com.respondent.pro.kiosk.KioskStatus
+ import com.respondent.pro.kiosk.SettingsExcursionOverlay
+ import com.respondent.pro.ui.i18n.LocalAppStrings
+ import com.respondent.pro.viewmodel.ChatIdResult
+@@ -45,6 +52,11 @@ fun SettingsScreen(
+     val isDetectingChatId by viewModel.isDetectingChatId.collectAsState()
+ 
+     var instructionsExpanded by remember { mutableStateOf(false) }
++    var kioskExpanded by remember { mutableStateOf(false) }
++    var adbExpanded by remember { mutableStateOf(false) }
++
++    val kioskStatus by viewModel.kioskStatus.collectAsState()
++    LaunchedEffect(Unit) { viewModel.refreshKioskStatus() }
+ 
+     // Auto-fill Chat ID when detected
+     LaunchedEffect(chatIdResult) {
+@@ -481,6 +493,15 @@ fun SettingsScreen(
+                 sendMethod = localSettings.sendMethod
+             )
+ 
++            // 13. ╨Ш╨╜╤Д╨╛╨║╨╕╨╛╤Б╨║ тАФ ╤Б╤В╨░╤В╤Г╤Б ╨╕ ╨╕╨╜╤Б╤В╤А╤Г╨║╤Ж╨╕╨╕
++            KioskCard(
++                status = kioskStatus,
++                expanded = kioskExpanded,
++                onToggle = { kioskExpanded = !kioskExpanded },
++                adbExpanded = adbExpanded,
++                onToggleAdb = { adbExpanded = !adbExpanded }
++            )
++
+             Spacer(modifier = Modifier.height(24.dp))
+         }
+     }
+@@ -698,3 +719,117 @@ private fun EmailInstructions() {
+         }
+     }
+ }
++
++@Composable
++private fun KioskCard(
++    status: KioskStatus?,
++    expanded: Boolean,
++    onToggle: () -> Unit,
++    adbExpanded: Boolean,
++    onToggleAdb: () -> Unit
++) {
++    val strings = LocalAppStrings.current
++    val context = LocalContext.current
++
++    Card(
++        modifier = Modifier
++            .fillMaxWidth()
++            .clickable { onToggle() },
++        colors = CardDefaults.cardColors(
++            containerColor = MaterialTheme.colorScheme.surfaceVariant
++        )
++    ) {
++        Column(modifier = Modifier.padding(16.dp)) {
++            Row(
++                modifier = Modifier.fillMaxWidth(),
++                horizontalArrangement = Arrangement.SpaceBetween,
++                verticalAlignment = Alignment.CenterVertically
++            ) {
++                Text(
++                    text = strings.kioskTitle,
++                    style = MaterialTheme.typography.titleMedium
++                )
++                Text(
++                    text = if (expanded) "тЦ▓" else "тЦ╝",
++                    style = MaterialTheme.typography.titleMedium
++                )
++            }
++
++            // ╨б╤В╨░╤В╤Г╤Б ╨▓╨╕╨┤╨╡╨╜ ╨▓╤Б╨╡╨│╨┤╨░, ╨┤╨░╨╢╨╡ ╤Б╨▓╤С╤А╨╜╤Г╤В╤Л╨╝
++            Text(
++                text = when {
++                    status == null -> ""
++                    status.deviceOwner && status.lockTaskPermitted ->
++                        "${strings.kioskStatusOwner}\n${strings.kioskStatusLock}"
++                    status.deviceOwner -> strings.kioskStatusOwner
++                    else -> strings.kioskStatusNoOwner
++                },
++                style = MaterialTheme.typography.bodyMedium,
++                color = if (status?.deviceOwner == true) {
++                    MaterialTheme.colorScheme.primary
++                } else {
++                    MaterialTheme.colorScheme.error
++                },
++                modifier = Modifier.padding(top = 4.dp)
++            )
++
++            AnimatedVisibility(visible = expanded) {
++                Column(modifier = Modifier.padding(top = 12.dp)) {
++                    // тЦ╢ ╨Э╨░╤Б╤В╤А╨╛╨╣╨║╨░ ╤З╨╡╤А╨╡╨╖ ADB
++                    Row(
++                        modifier = Modifier
++                            .fillMaxWidth()
++                            .clickable { onToggleAdb() },
++                        horizontalArrangement = Arrangement.SpaceBetween
++                    ) {
++                        Text(
++                            text = strings.kioskAdbSpoiler,
++                            style = MaterialTheme.typography.titleSmall
++                        )
++                        Text(text = if (adbExpanded) "тЦ▓" else "тЦ╝")
++                    }
++
++                    AnimatedVisibility(visible = adbExpanded) {
++                        Column(modifier = Modifier.padding(top = 8.dp)) {
++                            Text(
++                                text = strings.kioskAdbSteps,
++                                style = MaterialTheme.typography.bodySmall
++                            )
++                            // ╨б╤Б╤Л╨╗╨║╨░ ╨╜╨░ APK тАФ ╨║╨╛╨┐╨╕╤А╤Г╨╡╤В╤Б╤П ╨┐╨╛ ╨╜╨░╨╢╨░╤В╨╕╤О
++                            CommandText(text = KioskConfig.APK_DOWNLOAD_URL)
++                            Spacer(modifier = Modifier.height(8.dp))
++                            Text(
++                                text = strings.kioskCmdHint,
++                                style = MaterialTheme.typography.bodySmall,
++                                color = MaterialTheme.colorScheme.onSurfaceVariant
++                            )
++                            KioskConfig.adbCommands().forEach { cmd ->
++                                CommandText(text = cmd)
++                            }
++                        }
++                    }
++                }
++            }
++        }
++    }
++}
++
++@Composable
++private fun CommandText(text: String) {
++    val context = LocalContext.current
++    Text(
++        text = text,
++        fontFamily = FontFamily.Monospace,
++        style = MaterialTheme.typography.bodySmall,
++        color = MaterialTheme.colorScheme.primary,
++        modifier = Modifier
++            .fillMaxWidth()
++            .clickable {
++                val clipboard =
++                    context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
++                clipboard.setPrimaryClip(ClipData.newPlainText("adb", text))
++            }
++            .background(MaterialTheme.colorScheme.surface)
++            .padding(8.dp)
++    )
++}
+diff --git a/app/src/main/java/com/respondent/pro/viewmodel/SettingsViewModel.kt b/app/src/main/java/com/respondent/pro/viewmodel/SettingsViewModel.kt
+index d2056d2..c992520 100644
+--- a/app/src/main/java/com/respondent/pro/viewmodel/SettingsViewModel.kt
++++ b/app/src/main/java/com/respondent/pro/viewmodel/SettingsViewModel.kt
+@@ -7,6 +7,7 @@ import com.respondent.pro.data.remote.TelegramApi
+ import com.respondent.pro.data.repository.AppSettings
+ import com.respondent.pro.data.repository.SettingsRepository
+ import com.respondent.pro.kiosk.KioskManager
++import com.respondent.pro.kiosk.KioskStatus
+ import dagger.hilt.android.lifecycle.HiltViewModel
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.StateFlow
+@@ -30,6 +31,14 @@ class SettingsViewModel @Inject constructor(
+     private val _chatIdResult = MutableStateFlow<ChatIdResult?>(null)
+     val chatIdResult: StateFlow<ChatIdResult?> = _chatIdResult
+ 
++    /** ╨б╤В╨░╤В╤Г╤Б ╨╕╨╜╤Д╨╛╨║╨╕╨╛╤Б╨║╨░ тАФ ╨╛╨▒╨╜╨╛╨▓╨╗╤П╨╡╤В╤Б╤П ╨┐╤А╨╕ ╨║╨░╨╢╨┤╨╛╨╝ ╨╛╤В╨║╤А╤Л╤В╨╕╨╕ ╤Н╨║╤А╨░╨╜╨░ ╨╜╨░╤Б╤В╤А╨╛╨╡╨║ */
++    private val _kioskStatus = MutableStateFlow<KioskStatus?>(null)
++    val kioskStatus: StateFlow<KioskStatus?> = _kioskStatus
++
++    fun refreshKioskStatus() {
++        _kioskStatus.value = kioskManager.status()
++    }
++
+     /** ╨Ш╨┤╤С╤В ╨╗╨╕ ╨╖╨░╨┐╤А╨╛╤Б Chat ID */
+     private val _isDetectingChatId = MutableStateFlow(false)
+     val isDetectingChatId: StateFlow<Boolean> = _isDetectingChatId
+diff --git a/app/src/test/java/com/respondent/pro/ui/i18n/KioskStringsTest.kt b/app/src/test/java/com/respondent/pro/ui/i18n/KioskStringsTest.kt
+new file mode 100644
+index 0000000..801fc5b
+--- /dev/null
++++ b/app/src/test/java/com/respondent/pro/ui/i18n/KioskStringsTest.kt
+@@ -0,0 +1,22 @@
++package com.respondent.pro.ui.i18n
++
++import org.junit.Assert.assertTrue
++import org.junit.Test
++
++class KioskStringsTest {
++
++    private fun kioskValues(s: AppStrings) = listOf(
++        s.kioskTitle, s.kioskStatusOwner, s.kioskStatusLock, s.kioskStatusNoOwner,
++        s.kioskAdbSpoiler, s.kioskAdbSteps, s.kioskCmdHint
++    )
++
++    @Test
++    fun `kiosk strings are present and non-blank in ru`() {
++        assertTrue(kioskValues(ruStrings).all { it.isNotBlank() })
++    }
++
++    @Test
++    fun `kiosk strings are present and non-blank in en`() {
++        assertTrue(kioskValues(enStrings).all { it.isNotBlank() })
++    }
++}

@@ -1,0 +1,89 @@
+# Review package: e39c1f6..e6f1780
+
+## Commits
+e6f1780 feat(kiosk): DeviceAdminReceiver, permissions, singleTask; probe P1
+
+## Files changed
+ app/src/main/AndroidManifest.xml                          | 15 +++++++++++++++
+ .../java/com/respondent/pro/kiosk/KioskAdminReceiver.kt   |  9 +++++++++
+ app/src/main/res/xml/device_admin.xml                     | 12 ++++++++++++
+ 3 files changed, 36 insertions(+)
+
+## Diff
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index bf0f823..deb3cc7 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -1,24 +1,39 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+     <uses-permission android:name="android.permission.INTERNET" />
+     <uses-permission android:name="android.permission.VIBRATE" />
++    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
++    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
++    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+ 
+     <application
+         android:name=".RespondentApp"
+         android:allowBackup="false"
+         android:label="RESPONDENT.PRO"
+         android:supportsRtl="true"
+         android:theme="@style/Theme.RespondentPro">
++        <receiver
++            android:name=".kiosk.KioskAdminReceiver"
++            android:exported="true"
++            android:permission="android.permission.BIND_DEVICE_ADMIN">
++            <meta-data
++                android:name="android.app.device_admin"
++                android:resource="@xml/device_admin" />
++            <intent-filter>
++                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
++            </intent-filter>
++        </receiver>
+         <activity
+             android:name=".MainActivity"
+             android:exported="true"
++            android:launchMode="singleTask"
+             android:screenOrientation="unspecified"
+             android:windowSoftInputMode="stateHidden|adjustResize"
+             android:configChanges="orientation|screenSize|keyboardHidden">
+             <intent-filter>
+                 <action android:name="android.intent.action.MAIN" />
+                 <category android:name="android.intent.category.LAUNCHER" />
+             </intent-filter>
+         </activity>
+     </application>
+ </manifest>
+diff --git a/app/src/main/java/com/respondent/pro/kiosk/KioskAdminReceiver.kt b/app/src/main/java/com/respondent/pro/kiosk/KioskAdminReceiver.kt
+new file mode 100644
+index 0000000..0830113
+--- /dev/null
++++ b/app/src/main/java/com/respondent/pro/kiosk/KioskAdminReceiver.kt
+@@ -0,0 +1,9 @@
++package com.respondent.pro.kiosk
++
++import android.app.admin.DeviceAdminReceiver
++
++/**
++ * ╨ж╨╡╨╗╤М ╨▓╤Л╨┤╨░╤З╨╕ Device Owner. ╨Ы╨╛╨│╨╕╨║╨╕ ╨╜╨╡ ╤Б╨╛╨┤╨╡╤А╨╢╨╕╤В тАФ ╨╛╨▒╤К╤П╨▓╨╗╨╡╨╜ ╨▓ ╨╝╨░╨╜╨╕╤Д╨╡╤Б╤В╨╡
++ * ╤Б device_admin.xml, ╨╜╨░ ╤Н╤В╨╛╤В ╨║╨╛╨╝╨┐╨╛╨╜╨╡╨╜╤В ╤Б╤Б╤Л╨╗╨░╨╡╤В╤Б╤П dpm set-device-owner.
++ */
++class KioskAdminReceiver : DeviceAdminReceiver()
+diff --git a/app/src/main/res/xml/device_admin.xml b/app/src/main/res/xml/device_admin.xml
+new file mode 100644
+index 0000000..2892830
+--- /dev/null
++++ b/app/src/main/res/xml/device_admin.xml
+@@ -0,0 +1,12 @@
++<?xml version="1.0" encoding="utf-8"?>
++<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
++    <uses-policies>
++        <limit-password />
++        <watch-login />
++        <reset-password />
++        <force-lock />
++        <wipe-data />
++        <expire-password />
++        <encrypted-storage />
++    </uses-policies>
++</device-admin>

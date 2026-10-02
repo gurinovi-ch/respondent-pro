@@ -1,0 +1,334 @@
+# Review package: 6e673df..e3b2a8e
+
+## Commits
+e3b2a8e feat(kiosk): crash restart + watchdog alarm chain (TDD)
+
+## Files changed
+ app/src/main/AndroidManifest.xml                   |  8 +++
+ .../main/java/com/respondent/pro/MainActivity.kt   |  3 +
+ .../main/java/com/respondent/pro/RespondentApp.kt  |  6 ++
+ .../com/respondent/pro/kiosk/RestartReceiver.kt    | 62 ++++++++++++++++
+ .../com/respondent/pro/kiosk/WatchdogScheduler.kt  | 84 ++++++++++++++++++++++
+ .../respondent/pro/kiosk/WatchdogSchedulerTest.kt  | 26 +++++++
+ 6 files changed, 189 insertions(+)
+
+## Diff
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 73df43a..03116eb 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -32,20 +32,28 @@
+                 <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+             </intent-filter>
+         </receiver>
+         <receiver
+             android:name=".kiosk.BootReceiver"
+             android:exported="true">
+             <intent-filter>
+                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+             </intent-filter>
+         </receiver>
++        <receiver
++            android:name=".kiosk.RestartReceiver"
++            android:exported="false">
++            <intent-filter>
++                <action android:name="com.respondent.pro.kiosk.ACTION_WATCHDOG" />
++                <action android:name="com.respondent.pro.kiosk.ACTION_RESTART" />
++            </intent-filter>
++        </receiver>
+         <activity
+             android:name=".MainActivity"
+             android:exported="true"
+             android:launchMode="singleTask"
+             android:screenOrientation="unspecified"
+             android:windowSoftInputMode="stateHidden|adjustResize"
+             android:configChanges="orientation|screenSize|keyboardHidden">
+             <intent-filter>
+                 <action android:name="android.intent.action.MAIN" />
+                 <category android:name="android.intent.category.LAUNCHER" />
+diff --git a/app/src/main/java/com/respondent/pro/MainActivity.kt b/app/src/main/java/com/respondent/pro/MainActivity.kt
+index 8cce2d9..c58c795 100644
+--- a/app/src/main/java/com/respondent/pro/MainActivity.kt
++++ b/app/src/main/java/com/respondent/pro/MainActivity.kt
+@@ -7,20 +7,21 @@ import androidx.activity.compose.setContent
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Surface
+ import androidx.compose.runtime.CompositionLocalProvider
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.getValue
+ import androidx.compose.ui.Modifier
+ import com.respondent.pro.data.repository.AppSettings
+ import com.respondent.pro.data.repository.SettingsRepository
+ import com.respondent.pro.kiosk.KioskManager
++import com.respondent.pro.kiosk.WatchdogScheduler
+ import com.respondent.pro.ui.i18n.LocalAppStrings
+ import com.respondent.pro.ui.i18n.appStringsFor
+ import com.respondent.pro.ui.navigation.NavGraph
+ import com.respondent.pro.ui.theme.RespondentProTheme
+ import dagger.hilt.android.AndroidEntryPoint
+ import javax.inject.Inject
+ 
+ @AndroidEntryPoint
+ class MainActivity : ComponentActivity() {
+     @Inject
+@@ -28,20 +29,22 @@ class MainActivity : ComponentActivity() {
+ 
+     @Inject
+     lateinit var kioskManager: KioskManager
+ 
+     override fun onCreate(savedInstanceState: Bundle?) {
+         super.onCreate(savedInstanceState)
+         // ╨н╨║╤А╨░╨╜ ╨╜╨╕╨║╨╛╨│╨┤╨░ ╨╜╨╡ ╨│╨░╤Б╨╜╨╡╤В (╨║╨╕╨╛╤Б╨║, spec ┬з5)
+         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+         // ╨Я╨╛╨╗╨╕╤В╨╕╨║╨╕ DO тАФ ╨╕╨┤╨╡╨╝╨┐╨╛╤В╨╡╨╜╤В╨╜╨╛, ╨▒╨╡╨╖ DO ╤В╨╕╤Е╨╛ ╨┐╤А╨╛╨┐╤Г╤Б╨║╨░╨╡╤В╤Б╤П
+         kioskManager.applyPolicies()
++        // ╨Я╨╡╤А╨╡╨┐╨╗╨░╨╜╨╕╤А╤Г╨╡╨╝ ╤Ж╨╡╨┐╨╛╤З╨║╤Г ╤Б╤В╤А╨░╨╢╨░ ╨╜╨░ ╨║╨░╨╢╨┤╤Л╨╣ ╨╖╨░╨┐╤Г╤Б╨║ (spec ┬з3)
++        WatchdogScheduler.scheduleNext(this)
+         setContent {
+             val appSettings by settingsRepository.settings.collectAsState(initial = AppSettings())
+             RespondentProTheme {
+                 // ╨п╨╖╤Л╨║ ╨╕╨╜╤В╨╡╤А╤Д╨╡╨╣╤Б╨░ ╨┐╤А╨╕╨╝╨╡╨╜╤П╨╡╤В╤Б╤П ╨╝╨│╨╜╨╛╨▓╨╡╨╜╨╜╨╛ ╨┐╤А╨╕ ╨▓╤Л╨▒╨╛╤А╨╡ ╨▓ ╨╜╨░╤Б╤В╤А╨╛╨╣╨║╨░╤Е
+                 CompositionLocalProvider(
+                     LocalAppStrings provides appStringsFor(appSettings.language)
+                 ) {
+                     Surface(
+                         modifier = Modifier.fillMaxSize(),
+                         color = MaterialTheme.colorScheme.background
+diff --git a/app/src/main/java/com/respondent/pro/RespondentApp.kt b/app/src/main/java/com/respondent/pro/RespondentApp.kt
+index acb721e..8fb3c66 100644
+--- a/app/src/main/java/com/respondent/pro/RespondentApp.kt
++++ b/app/src/main/java/com/respondent/pro/RespondentApp.kt
+@@ -1,15 +1,16 @@
+ package com.respondent.pro
+ 
+ import android.app.Application
+ import android.content.Context
+ import android.util.Log
++import com.respondent.pro.kiosk.WatchdogScheduler
+ import dagger.hilt.android.HiltAndroidApp
+ import java.io.File
+ import java.io.PrintWriter
+ import java.io.StringWriter
+ import java.text.SimpleDateFormat
+ import java.util.Date
+ import java.util.Locale
+ 
+ @HiltAndroidApp
+ class RespondentApp : Application() {
+@@ -47,20 +48,25 @@ class RespondentApp : Application() {
+                     val file = File(context.filesDir, CRASH_FILE)
+                     file.appendText(log + "\n\n")
+ 
+                     // Also try external storage for easy adb pull
+                     try {
+                         val extFile = File(context.getExternalFilesDir(null), CRASH_FILE)
+                         extFile.appendText(log + "\n\n")
+                     } catch (_: Exception) {}
+                 } catch (_: Exception) {}
+ 
++                // ╨Я╨╗╨░╨╜╨╕╤А╤Г╨╡╨╝ ╨┐╨╡╤А╨╡╨╖╨░╨┐╤Г╤Б╨║ ╨║╨╕╨╛╤Б╨║╨░ ╨┐╨╛╤Б╨╗╨╡ ╨║╤А╤Н╤И╨░ (spec ┬з3)
++                try {
++                    WatchdogScheduler.scheduleRestart(context)
++                } catch (_: Exception) {}
++
+                 // Pass to default handler (shows system crash dialog)
+                 defaultHandler?.uncaughtException(thread, throwable)
+             }
+         }
+ 
+         fun getCrashLog(context: Context): String {
+             return try {
+                 val file = File(context.filesDir, CRASH_FILE)
+                 if (file.exists()) file.readText() else "No crash log found"
+             } catch (e: Exception) {
+diff --git a/app/src/main/java/com/respondent/pro/kiosk/RestartReceiver.kt b/app/src/main/java/com/respondent/pro/kiosk/RestartReceiver.kt
+new file mode 100644
+index 0000000..9ce8942
+--- /dev/null
++++ b/app/src/main/java/com/respondent/pro/kiosk/RestartReceiver.kt
+@@ -0,0 +1,62 @@
++package com.respondent.pro.kiosk
++
++import android.content.BroadcastReceiver
++import android.content.Context
++import android.content.Intent
++import android.util.Log
++import dagger.hilt.EntryPoint
++import dagger.hilt.InstallIn
++import dagger.hilt.android.EntryPointAccessors
++import dagger.hilt.components.SingletonComponent
++import com.respondent.pro.MainActivity
++
++@EntryPoint
++@InstallIn(SingletonComponent::class)
++interface KioskEntryPoint {
++    fun kioskManager(): KioskManager
++}
++
++/**
++ * ╨Я╤А╨╕╤С╨╝ alarm'╨╛╨▓ ╤Б╤В╤А╨░╨╢╨░ ╨╕ ╤А╨░╨╖╨╛╨▓╨╛╨│╨╛ ╨┐╨╡╤А╨╡╨╖╨░╨┐╤Г╤Б╨║╨░ (spec ┬з3).
++ * ACTION_WATCHDOG тАФ ╨▓╤Б╨╡╨│╨┤╨░ ╨┐╨╡╤А╨╡╨┐╨╗╨░╨╜╨╕╤А╤Г╨╡╤В ╤Б╨╗╨╡╨┤╤Г╤О╤Й╨╕╨╣ ╤И╨░╨│ (╤Ж╨╡╨┐╨╛╤З╨║╨░ ╨╜╨╡ ╤А╨▓╤С╤В╤Б╤П),
++ * ╨╕ ╨┐╨╡╤А╨╡╨╖╨░╨┐╤Г╤Б╨║╨░╨╡╤В ╨┐╤А╨╕╨╗╨╛╨╢╨╡╨╜╨╕╨╡, ╨╡╤Б╨╗╨╕ ╨╛╨╜╨╛ ╨▓ ╤Д╨╛╨╜╨╡ ╨╕ ╨╜╨╡ ╨╕╨┤╤С╤В excursion.
++ */
++class RestartReceiver : BroadcastReceiver() {
++
++    companion object {
++        private const val TAG = "RestartReceiver"
++    }
++
++    override fun onReceive(context: Context, intent: Intent) {
++        when (intent.action) {
++            WatchdogScheduler.ACTION_WATCHDOG -> {
++                WatchdogScheduler.scheduleNext(context)
++                maybeRestart(context)
++            }
++            WatchdogScheduler.ACTION_RESTART -> maybeRestart(context)
++        }
++    }
++
++    private fun maybeRestart(context: Context) {
++        val kiosk = EntryPointAccessors
++            .fromApplication(context.applicationContext, KioskEntryPoint::class.java)
++            .kioskManager()
++        if (!kiosk.shouldRestart()) {
++            // R8: ╨┐╤А╨╛╤И╨╕╨▓╨║╨░ ╨┐╨╛╨┤╨░╨▓╨╗╤П╨╡╤В Log.d тАФ verification-╤Б╤В╤А╨╛╨║╨╕ ╨┐╨╕╤И╨╡╨╝ ╤З╨╡╤А╨╡╨╖ Log.i
++            Log.i(TAG, "Skip restart (foreground=${kiosk.isForeground}, excursion=${kiosk.excursionActive})")
++            return
++        }
++        // R8: ╨┐╤А╨╛╤И╨╕╨▓╨║╨░ ╨┐╨╛╨┤╨░╨▓╨╗╤П╨╡╤В Log.d тАФ verification-╤Б╤В╤А╨╛╨║╨╕ ╨┐╨╕╤И╨╡╨╝ ╤З╨╡╤А╨╡╨╖ Log.i
++        Log.i(TAG, "Restarting MainActivity")
++        try {
++            val launch = Intent(context, MainActivity::class.java).apply {
++                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
++            }
++            context.startActivity(launch)
++        } catch (e: Exception) {
++            // Review Focus тДЦ1: ╨╜╨░ Android 10+ ╤Д╨╛╨╜╨╛╨▓╤Л╨╣ ╤Б╤В╨░╤А╤В ╨╝╨╛╨╢╨╡╤В ╨▒╤Л╤В╤М ╨╖╨░╨▒╨╗╨╛╨║╨╕╤А╨╛╨▓╨░╨╜ тАФ
++            // ╨╗╨╛╨│╨╕╤А╤Г╨╡╨╝; ╤Б╨╗╨╡╨┤╤Г╤О╤Й╨░╤П ╨┐╨╛╨┐╤Л╤В╨║╨░ ╤З╨╡╤А╨╡╨╖ 60 ╤Б╨╡╨║ (╤Ж╨╡╨┐╨╛╤З╨║╨░ alarm'╨╛╨▓ ╨┐╨╡╤А╨╡╨╢╨╕╨▓╨░╨╡╤В ╨╛╤В╨║╨░╨╖)
++            Log.e(TAG, "startActivity failed (background start restriction?)", e)
++        }
++    }
++}
+diff --git a/app/src/main/java/com/respondent/pro/kiosk/WatchdogScheduler.kt b/app/src/main/java/com/respondent/pro/kiosk/WatchdogScheduler.kt
+new file mode 100644
+index 0000000..21fcd5f
+--- /dev/null
++++ b/app/src/main/java/com/respondent/pro/kiosk/WatchdogScheduler.kt
+@@ -0,0 +1,84 @@
++package com.respondent.pro.kiosk
++
++import android.app.AlarmManager
++import android.app.PendingIntent
++import android.content.Context
++import android.content.Intent
++import android.os.Build
++import android.util.Log
++
++/**
++ * ╨ж╨╡╨┐╨╛╤З╨║╨░ alarm'╨╛╨▓: ╨║╨░╨╢╨┤╤Г╤О ╨╝╨╕╨╜╤Г╤В╤Г RestartReceiver ╨┐╤А╨╛╨▓╨╡╤А╤П╨╡╤В тАФ ╨╜╨░ ╤Н╨║╤А╨░╨╜╨╡ ╨╗╨╕ ╨┐╤А╨╕╨╗╨╛╨╢╨╡╨╜╨╕╨╡,
++ * ╨╕╨╜╨░╤З╨╡ ╨┐╨╡╤А╨╡╨╖╨░╨┐╤Г╤Б╨║╨░╨╡╤В (spec ┬з3). ╨в╨╛╤З╨╜╨╛╤Б╤В╤М: exact, ╨┐╤А╨╕ ╨╛╤В╨║╨░╨╖╨╡ (API 31+) тАФ ╨╜╨╡╤В╨╛╤З╨╜╤Л╨╣.
++ */
++object WatchdogScheduler {
++
++    private const val TAG = "WatchdogScheduler"
++
++    const val ACTION_WATCHDOG = "com.respondent.pro.kiosk.ACTION_WATCHDOG"
++    const val ACTION_RESTART = "com.respondent.pro.kiosk.ACTION_RESTART"
++
++    const val PERIOD_MS = 60_000L
++    const val CRASH_DELAY_MS = 1_000L
++
++    private const val REQUEST_WATCHDOG = 1001
++    private const val REQUEST_RESTART = 1002
++
++    enum class AlarmMode { EXACT, INEXACT }
++
++    /** ╨а╨╡╤И╨░╨╗╨║╨░ (TDD): exact-alarm ╤А╨░╨╖╤А╨╡╤И╤С╨╜ ╤В╨╛╨╗╤М╨║╨╛ ╤Б API 31 ╨╕ ╤В╨╛╨╗╤М╨║╨╛ ╨╡╤Б╨╗╨╕ ╨╜╨╡ ╨╛╤В╨╛╨╖╨▓╨░╨╜. */
++    fun decide(sdkInt: Int, canScheduleExact: Boolean): AlarmMode =
++        if (sdkInt >= 31 && !canScheduleExact) AlarmMode.INEXACT else AlarmMode.EXACT
++
++    private fun mode(context: Context): AlarmMode {
++        val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
++        // Short-circuit = guard ╨┤╨╗╤П Android 7-10 (canScheduleExactAlarms ╨┐╨╛╤П╨▓╨╕╨╗╤Б╤П ╨▓ API 31)
++        val canExact = Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()
++        return decide(Build.VERSION.SDK_INT, canExact)
++    }
++
++    private fun pendingIntent(context: Context, action: String, requestCode: Int): PendingIntent =
++        PendingIntent.getBroadcast(
++            context,
++            requestCode,
++            Intent(context, RestartReceiver::class.java).setAction(action),
++            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
++        )
++
++    /** ╨б╨╗╨╡╨┤╤Г╤О╤Й╨╕╨╣ ╤И╨░╨│ ╨┐╨╡╤А╨╕╨╛╨┤╨╕╤З╨╡╤Б╨║╨╛╨│╨╛ ╤Б╤В╤А╨░╨╢╨░ (╨▓╤Л╨╖╤Л╨▓╨░╨╡╤В╤Б╤П ╨┐╤А╨╕ ╤Б╤В╨░╤А╤В╨╡ ╨┐╤А╨╕╨╗╨╛╨╢╨╡╨╜╨╕╤П ╨╕ ╨╕╨╖ receiver'╨░). */
++    fun scheduleNext(context: Context) {
++        try {
++            val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
++            val trigger = System.currentTimeMillis() + PERIOD_MS
++            val pi = pendingIntent(context, ACTION_WATCHDOG, REQUEST_WATCHDOG)
++            val alarmMode = mode(context)
++            if (alarmMode == AlarmMode.EXACT) {
++                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pi)
++            } else {
++                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pi)
++            }
++            // R8: ╨┐╤А╨╛╤И╨╕╨▓╨║╨░ ╨┐╨╛╨┤╨░╨▓╨╗╤П╨╡╤В Log.d тАФ verification-╤Б╤В╤А╨╛╨║╨╕ ╨┐╨╕╤И╨╡╨╝ ╤З╨╡╤А╨╡╨╖ Log.i
++            Log.i(TAG, "Watchdog armed ($alarmMode)")
++        } catch (e: Exception) {
++            Log.e(TAG, "scheduleNext failed", e)
++        }
++    }
++
++    /** ╨а╨░╨╖╨╛╨▓╤Л╨╣ ╨┐╨╡╤А╨╡╨╖╨░╨┐╤Г╤Б╨║ ╨┐╨╛╤Б╨╗╨╡ ╨║╤А╤Н╤И╨░ (spec ┬з3: CrashHandler тЖТ ~1 ╤Б╨╡╨║). */
++    fun scheduleRestart(context: Context, delayMs: Long = CRASH_DELAY_MS) {
++        try {
++            val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
++            val trigger = System.currentTimeMillis() + delayMs
++            val pi = pendingIntent(context, ACTION_RESTART, REQUEST_RESTART)
++            if (mode(context) == AlarmMode.EXACT) {
++                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pi)
++            } else {
++                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pi)
++            }
++            // R8: ╨┐╤А╨╛╤И╨╕╨▓╨║╨░ ╨┐╨╛╨┤╨░╨▓╨╗╤П╨╡╤В Log.d тАФ verification-╤Б╤В╤А╨╛╨║╨╕ ╨┐╨╕╤И╨╡╨╝ ╤З╨╡╤А╨╡╨╖ Log.i
++            Log.i(TAG, "Restart alarm in ${delayMs}ms")
++        } catch (e: Exception) {
++            Log.e(TAG, "scheduleRestart failed", e)
++        }
++    }
++}
+diff --git a/app/src/test/java/com/respondent/pro/kiosk/WatchdogSchedulerTest.kt b/app/src/test/java/com/respondent/pro/kiosk/WatchdogSchedulerTest.kt
+new file mode 100644
+index 0000000..7b6e282
+--- /dev/null
++++ b/app/src/test/java/com/respondent/pro/kiosk/WatchdogSchedulerTest.kt
+@@ -0,0 +1,26 @@
++package com.respondent.pro.kiosk
++
++import org.junit.Assert.assertEquals
++import org.junit.Test
++
++class WatchdogSchedulerTest {
++
++    @Test
++    fun `exact alarm allowed before android 12`() {
++        assertEquals(WatchdogScheduler.AlarmMode.EXACT, WatchdogScheduler.decide(sdkInt = 29, canScheduleExact = false))
++        assertEquals(WatchdogScheduler.AlarmMode.EXACT, WatchdogScheduler.decide(sdkInt = 30, canScheduleExact = false))
++    }
++
++    @Test
++    fun `exact alarm used when permitted on android 12+`() {
++        assertEquals(WatchdogScheduler.AlarmMode.EXACT, WatchdogScheduler.decide(sdkInt = 31, canScheduleExact = true))
++        assertEquals(WatchdogScheduler.AlarmMode.EXACT, WatchdogScheduler.decide(sdkInt = 35, canScheduleExact = true))
++    }
++
++    @Test
++    fun `inexact fallback when exact alarm not permitted on android 12+`() {
++        // Review Focus тДЦ3
++        assertEquals(WatchdogScheduler.AlarmMode.INEXACT, WatchdogScheduler.decide(sdkInt = 31, canScheduleExact = false))
++        assertEquals(WatchdogScheduler.AlarmMode.INEXACT, WatchdogScheduler.decide(sdkInt = 35, canScheduleExact = false))
++    }
++}
