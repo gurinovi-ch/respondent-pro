@@ -4,6 +4,10 @@ import android.content.Context
 import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.respondent.pro.cabinet.BindingStorage
+import com.respondent.pro.cabinet.CabinetApi
+import com.respondent.pro.cabinet.EncryptedBindingStorage
+import com.respondent.pro.cabinet.KabinetConfig
 import com.respondent.pro.data.local.AppDatabase
 import com.respondent.pro.data.local.FeedbackDao
 import com.respondent.pro.data.remote.TelegramApi
@@ -55,5 +59,22 @@ object AppModule {
     @Singleton
     fun provideTelegramApi(retrofit: Retrofit): TelegramApi {
         return retrofit.create(TelegramApi::class.java)
+    }
+
+    /** API кабинета — отдельный Retrofit со своим baseUrl (не путать с Telegram). */
+    @Provides
+    @Singleton
+    fun provideCabinetApi(): CabinetApi {
+        return Retrofit.Builder()
+            .baseUrl(KabinetConfig.BASE_URL)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(CabinetApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideBindingStorage(@ApplicationContext context: Context): BindingStorage {
+        return EncryptedBindingStorage(context)
     }
 }

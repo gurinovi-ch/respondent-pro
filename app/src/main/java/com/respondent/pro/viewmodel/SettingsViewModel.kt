@@ -10,6 +10,13 @@ import androidx.lifecycle.viewModelScope
 import com.respondent.pro.data.remote.TelegramApi
 import com.respondent.pro.data.repository.AppSettings
 import com.respondent.pro.data.repository.SettingsRepository
+import com.respondent.pro.cabinet.BindingStorage
+import com.respondent.pro.cabinet.CabinetApi
+import com.respondent.pro.cabinet.CabinetBinder
+import com.respondent.pro.cabinet.CabinetState
+import com.respondent.pro.cabinet.FailKind
+import com.respondent.pro.cabinet.PairOutcome
+import com.respondent.pro.cabinet.StoredBinding
 import com.respondent.pro.kiosk.KioskManager
 import com.respondent.pro.kiosk.KioskStatus
 import com.respondent.pro.kiosk.QrDiagnostics
@@ -30,6 +37,8 @@ class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val telegramApi: TelegramApi,
     private val kioskManager: KioskManager,
+    private val cabinetApi: CabinetApi,
+    private val bindingStorage: BindingStorage,
     @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
@@ -69,6 +78,42 @@ class SettingsViewModel @Inject constructor(
     /** Идёт ли диагностика QR-провижининга */
     private val _isRunningQrDiagnostics = MutableStateFlow(false)
     val isRunningQrDiagnostics: StateFlow<Boolean> = _isRunningQrDiagnostics
+
+    private val cabinetBinder = CabinetBinder(bindingStorage, cabinetApi)
+
+    /** Состояние привязки к кабинету (инициализируется из сохранённого ключа). */
+    private val _cabinetState = MutableStateFlow<CabinetState>(
+        cabinetBinder.currentBinding()?.toBound() ?: CabinetState.Unbound
+    )
+    val cabinetState: StateFlow<CabinetState> = _cabinetState
+
+    private fun StoredBinding.toBound() =
+        CabinetState.Bound(organizationName, pointName)
+
+    /** Обмен pairing-кода на ключ. Повторный вызов защищён (state Binding + BUSY). */
+    fun pairCabinet(rawCode: String) {
+        if (_cabinetState.value is CabinetState.Binding) return
+        viewModelScope.launch {
+            _cabinetState.value = CabinetState.Binding
+            val outcome = cabinetBinder.pair(rawCode)
+            _cabinetState.value = when (outcome) {
+                PairOutcome.PAIRED ->
+                    cabinetBinder.currentBinding()?.toBound() ?: CabinetState.Unbound
+                PairOutcome.BUSY -> CabinetState.Binding
+                PairOutcome.INVALID_CODE -> CabinetState.Failed(FailKind.INVALID_CODE)
+                PairOutcome.NETWORK_ERROR -> CabinetState.Failed(FailKind.NETWORK)
+                PairOutcome.REVOKED -> CabinetState.Failed(FailKind.REVOKED)
+            }
+            Log.i("SettingsViewModel", "cabinet pair: $outcome")
+        }
+    }
+
+    /** Локальная отвязка (серверный revoke — в кабинете). */
+    fun unbindCabinet() {
+        cabinetBinder.unbindLocal()
+        _cabinetState.value = CabinetState.Unbound
+        Log.i("SettingsViewModel", "cabinet unbound locally")
+    }
 
     /**
      * Диагностика QR-провижининга перед стиранием устройства.
