@@ -1,620 +1,47 @@
-# Tablet Binding (pairing-код → device API-key) Implementation Plan
+# Tablet Binding — апгрейд pairing в RSP + Android-клиент — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Привязать планшет с приложением RESPONDENT.PRO к Компании в кабинете my.respondent.pro через одноразовый pairing-код без хранения пароля человека на устройстве.
+**Goal:** Привязать планшет RESPONDENT.PRO к Компании через одноразовый 8-символьный pairing-код (15 мин) с хэшированным хранением и rate-limit — апгрейд существующего PIN-механизма RSP — плюс экран привязки в Android-приложении.
 
-**Architecture:** Сервер (NestJS) выдаёт одноразовый 8-символьный код (TTL 15 мин, в БД только SHA-256) и обменивает его на постоянный device API-key (`X-API-Key`); планшет вводит код в Настройках и хранит ключ в EncryptedSharedPreferences. Две фазы: A — сервер (каталог без git), B — Android-приложение (ветка kiosk-mode, коммит на задачу).
+**Architecture:** Фаза A — сервер `C:\projects\RSP` (клон `gurinovi-ch/RSP`, git → push `main`): апгрейд `Tablet.pairingPin` (SHA-256, CSPRNG, TTL 15 мин, единый 400, throttler) + поле `pointName`, без новых таблиц. Фаза B — клиент в worktree `kiosk-mode`: `CabinetApi @POST("tablets/pair")` → `EncryptedSharedPreferences` → секция «Привязка к кабинету».
 
-**Tech Stack:** NestJS 10 + Prisma 5.8 + @nestjs/throttler + Jest/ts-jest/supertest; Android (Kotlin) — Retrofit 2.9, Hilt, androidx.security:security-crypto 1.1.0-alpha06, Compose, JUnit4.
+**Tech Stack:** NestJS 10 + Prisma (jest 30 настроен, baseline 23/23; доустановка: `@nestjs/throttler`, `@nestjs/testing`, `supertest`); Android — Retrofit 2.9, Hilt, androidx.security:security-crypto 1.1.0-alpha06, Compose, JUnit4.
 
-**Spec:** `docs/superpowers/specs/2026-10-02-tablet-binding-design.md` (план аргументирует от спеки — читать оба).
+**Spec:** `docs/superpowers/specs/2026-10-02-tablet-binding-design.md` (**ревизия A от 02.10.2026** — апгрейд существующего контракта; прежний вариант с `POST /api/pair` и таблицей `PairingCode` отменён). План аргументирует от спеки — читать оба.
 
 ## Global Constraints
 
-- Сервер: `C:\Users\leonb\OneDrive\Документы\Default Project\server` — **не git-репозиторий, НЕ делайте `git init`** (каталог в OneDrive; решение о VCS принимает пользователь отдельно). Ворота каждой сервер-задачи: `npm test` и/или `npm run build`.
-- Клиент: worktree `C:\projects\feedback-app\.worktrees\kiosk-mode`, все коммиты → push в `kiosk-mode` («одна задача — один коммит»).
-- Сборка клиента: `$env:JAVA_HOME="C:\Users\leonb\.jdks\jbr-21.0.11"; .\gradlew.bat assembleDebug testDebugUnitTest` (норма — все зелёные).
-- Новые UI-строки — только AppStrings (ru+en). Room/DataStore не трогать. Логи — `Log.i`. Мини-SDK 24.
-- Визуальные проверки (скриншоты) — пользователь; агент верифицирует инструментально (тесты, dumpsys, logcat, uia-dump).
-- Деструктивное (factory reset, dpm, деплой на VPS) — только по явному «да» пользователя.
-- Безопасность (из спеки): единый ответ 400 `{"message":"invalid or expired code"}` на любую неудачу паринга; TTL 15 мин; в БД только SHA-256; throttler `POST /api/pair` = 10/мин на IP.
+- **Сервер:** `C:\projects\RSP` — рабочая копия готова и проверена (clone чистый, `.env` перенесён, baseline `npm.cmd test` = 23/23, `npx.cmd tsc --noEmit` чист, `npm.cmd run build` ок). Ветка `main`; **каждая задача = коммит + `git push origin main`**.
+- **PowerShell Execution Policy блокирует `npm.ps1`/`npx.ps1`** — везде использовать **`npm.cmd`** / **`npx.cmd`** (иначе `PSSecurityException`).
+- Ворота серверных задач: `npm.cmd test` + `npx.cmd tsc --noEmit -p tsconfig.json` + `npm.cmd run build`.
+- **Клиент:** worktree `C:\projects\feedback-app\.worktrees\kiosk-mode`; коммит → push `kiosk-mode` (одна задача — один коммит). Сборка: `$env:JAVA_HOME="C:\Users\leonb\.jdks\jbr-21.0.11"; .\gradlew.bat assembleDebug testDebugUnitTest`.
+- Новые UI-строки — только AppStrings (ru+en). Room/DataStore не трогать. Логи — `Log.i`. minSdk 24. Визуал — пользователь. Деструктивное/деплой — только по явному «да».
+- **Безопасность (спека §5):** единый `400 {"message":"Invalid or expired pairing code"}`; TTL 15 мин; в БД только SHA-256 hex нормализованного кода; генерация `crypto.randomInt` из алфавита `23456789ABCDEFGHJKMNPQRSTUVWXYZ` (32 символа — **совпадает с клиентской проверкой**); `POST /api/tablets/pair` — 10 req/min/IP (429); отклонения логируются `warn` с IP.
 
 ## Review Focus
 
-Пять входов/условий, которые спека подразумевает, но не каждое покрыто тестами задач по умолчанию:
-
-1. **Ввод кода с мусором** (пробелы, дефисы, строчные, кириллица) → нормализация до отправки; закреплено тестом нормализации в Task 7 (`CabinetBinderTest`).
-2. **Двойной тап «Привязать»** (повторный POST во время первого) → guard повторного входа; тест с зависшим первым запросом в Task 7.
-3. **Раскрытие причины неудачи сервером** (разные ошибки для «просрочен»/«уже использован») → единый 400; тесты в Task 2 (service) и Task 3 (HTTP e2e) — сообщение обязано совпадать байт в байт.
-4. **401/403 vs сетевые ошибки**: отозванный ключ должен чистить локальное состояние, timeout — нет; тесты `isRevoked`/IOException в Task 7.
-5. **rotate-key до погашения кода**: код обязан выдать НОВЫЙ активный ключ, не старый; тест в Task 2 (redeem читает `tablet.apiKey` актуальный, проверяет `isActive`).
+1. **Ввод кода с мусором** (пробелы/дефисы/регистр/кириллица) → нормализация до отправки; тест нормализации — Task 5.
+2. **Двойной тап «Привязать»** → guard повторного входа; тест с зависшим первым запросом — Task 5.
+3. **Раскрытие причины сервером** (неактивный ключ = отдельное сообщение, как сейчас) → единый 400; unit-тест всех неудач в Task 2 + HTTP e2e «тело байт в байт» в Task 3.
+4. **401/403 vs сетевые ошибки** → отозванный ключ чистит локальное состояние, timeout — нет; тесты — Task 5.
+5. **rotate-key до погашения** → `pair` выдаёт текущий активный ключ, а старый PIN уже сгорел при rotate; тесты — Task 2.
 
 ---
 
-## Фаза A — Сервер
+## Фаза A — Сервер (`C:\projects\RSP`)
 
-### Task 1: Prisma — модель PairingCode и поле Tablet.pointName
-
-**Files:**
-- Modify: `C:\Users\leonb\OneDrive\Документы\Default Project\server\prisma\schema.prisma`
-
-**Interfaces:**
-- Produces: модель `PairingCode` (поля `id, tabletId@unique, codeHash, expiresAt, usedAt, createdAt`) и `Tablet.pointName: String?` — нужны Task 2–5.
-
-- [ ] **Step 1: Дописать в model Tablet** (после `name String` добавить `pointName String?`, после `feedbacks Feedback[]` — связь):
-
-```prisma
-model Tablet {
-  id             String   @id @default(uuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  apiKeyId       String?  @unique
-  apiKey         ApiKey?  @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
-  name           String
-  pointName      String?
-  isActive       Boolean  @default(true)
-  lastSeenAt     DateTime?
-  createdAt      DateTime @default(now())
-
-  feedbacks   Feedback[]
-  pairingCode PairingCode?
-
-  @@map("tablets")
-}
-```
-
-- [ ] **Step 2: Добавить модель PairingCode** (в конец schema.prisma):
-
-```prisma
-// --- Pairing codes (одноразовый код привязки планшета) ---
-model PairingCode {
-  id        String   @id @default(uuid())
-  tabletId  String   @unique
-  tablet    Tablet   @relation(fields: [tabletId], references: [id], onDelete: Cascade)
-  codeHash  String
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime @default(now())
-
-  @@map("pairing_codes")
-}
-```
-
-- [ ] **Step 3: Сгенерировать клиент и накатить схему**
-
-Run (в каталоге сервера):
-```
-npx prisma generate
-npx prisma migrate dev --name tablet_binding
-```
-Expected: `Generated Prisma Client`. Если `migrate dev` завершится ошибкой дрейфа/базовой линии (в репо нет `prisma/migrations` — БД исторически создавалась через `db push`) — выполнить `npx prisma db push` и не прерываться.
-
-- [ ] **Step 4: Проверка компиляции**
-
-Run: `npm run build`
-Expected: `BUILD SUCCESSFUL` / без ошибок TypeScript.
-
----
-
-### Task 2: Jest-инфраструктура + PairingService (TDD)
+### Task 1: pointName — схема, миграция, endpoints (TDD)
 
 **Files:**
-- Create: `server\src\pairing\pairing.service.ts`
-- Test: `server\src\pairing\pairing.service.spec.ts`
-- Modify: `server\package.json` (devDependencies + блок `jest`)
+- Test: `C:\projects\RSP\src\tablets\tablets.service.spec.ts` (новый)
+- Modify: `C:\projects\RSP\prisma\schema.prisma`
+- Modify: `C:\projects\RSP\src\tablets\tablets.service.ts` (create/update)
+- Modify: `C:\projects\RSP\src\tablets\tablets.controller.ts` (типы body)
 
 **Interfaces:**
-- Consumes: `PrismaService` (`prisma/tablet`, `prisma/pairingCode`), модель из Task 1.
-- Produces: `PairingService.generateForTablet(organizationId: string, tabletId: string): Promise<{ code: string; expiresAt: Date }>`, `PairingService.redeem(input: unknown): Promise<PairResult>`; `interface PairResult { apiKey: string; tabletId: string; organizationId: string; organizationName: string; pointName: string | null }` — используют Task 3–4.
-
-- [ ] **Step 1: Установить тестовый инструментарий**
-
-Run:
-```
-npm install -D jest ts-jest @types/jest @nestjs/testing supertest @types/supertest
-```
-Expected: пакеты добавлены в devDependencies.
-
-- [ ] **Step 2: Добавить конфиг jest в package.json** (после блока `"prisma"`):
-
-```json
-"jest": {
-  "moduleFileExtensions": ["js", "json", "ts"],
-  "rootDir": "src",
-  "testRegex": ".*\\.spec\\.ts$",
-  "transform": { "^.+\\.(t|j)s$": "ts-jest" },
-  "testEnvironment": "node"
-}
-```
-
-- [ ] **Step 3: Написать падающий тест PairingService**
-
-Create `src\pairing\pairing.service.spec.ts`:
-
-```ts
-import { PairingService } from './pairing.service';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
-
-describe('PairingService', () => {
-  const NOW = Date.now();
-  let prisma: any;
-  let service: PairingService;
-
-  const futureRow = {
-    id: 'pc1',
-    tabletId: 't1',
-    codeHash: 'irrelevant',
-    expiresAt: new Date(NOW + 60_000),
-    usedAt: null as Date | null,
-  };
-
-  const tabletActive = {
-    id: 't1',
-    organizationId: 'o1',
-    pointName: 'Точка у входа',
-    apiKey: { key: 'rpro_new', isActive: true },
-    organization: { name: 'ООО Ромашка' },
-  };
-
-  beforeEach(() => {
-    prisma = {
-      tablet: { findFirst: jest.fn(), findUnique: jest.fn() },
-      pairingCode: { upsert: jest.fn(), findFirst: jest.fn(), updateMany: jest.fn() },
-    };
-    service = new PairingService(prisma as any);
-  });
-
-  // redeem ищет строку ПО ХЭШУ: если findFirst вернул строку — хэш совпал.
-  // Поэтому в тестах findFirst мокается напрямую, без реконструкции кода.
-  const fail = async (fn: () => Promise<unknown>) =>
-    (await fn().catch((e) => e)) as BadRequestException;
-
-  it('generate: код формата XXXX-XXXX из алфавита, в БД уходит только SHA-256', async () => {
-    prisma.tablet.findFirst.mockResolvedValue({ id: 't1', organizationId: 'o1' });
-    const out = await service.generateForTablet('o1', 't1');
-
-    expect(out.code).toMatch(/^[2-9ABCDEFGHJKMNPQRSTUVWXYZ]{4}-[2-9ABCDEFGHJKMNPQRSTUVWXYZ]{4}$/);
-    const arg = prisma.pairingCode.upsert.mock.calls[0][0];
-    expect(arg.create.codeHash).toHaveLength(64);
-    // сам код в БД не попадает — только его SHA-256
-    expect(JSON.stringify(arg)).not.toContain(out.code.replace('-', ''));
-    expect(arg.create.expiresAt.getTime()).toBeGreaterThan(NOW + 14 * 60 * 1000);
-    expect(arg.update.usedAt).toBeNull();
-  });
-
-  it('generate: планшет не из организации → NotFound', async () => {
-    prisma.tablet.findFirst.mockResolvedValue(null);
-    await expect(service.generateForTablet('o1', 'nope')).rejects.toThrow(NotFoundException);
-  });
-
-  it('redeem: happy path — текущий активный ключ + метаданные, код погашается', async () => {
-    prisma.pairingCode.findFirst.mockResolvedValue({ ...futureRow });
-    prisma.tablet.findUnique.mockResolvedValue({ ...tabletActive });
-    prisma.pairingCode.updateMany.mockResolvedValue({ count: 1 });
-
-    const res = await service.redeem('ABCD-EFGH');
-    expect(res).toEqual({
-      apiKey: 'rpro_new',
-      tabletId: 't1',
-      organizationId: 'o1',
-      organizationName: 'ООО Ромашка',
-      pointName: 'Точка у входа',
-    });
-    expect(prisma.pairingCode.updateMany).toHaveBeenCalledWith({
-      where: { id: 'pc1', usedAt: null },
-      data: { usedAt: expect.any(Date) },
-    });
-  });
-
-  it('redeem: неверный / просроченный / использованный / не-строка → единый 400 байт в байт', async () => {
-    prisma.pairingCode.findFirst.mockResolvedValue(null);
-    const wrong = await fail(() => service.redeem('ZZZZ-ZZZZ'));
-
-    prisma.pairingCode.findFirst.mockResolvedValue({ ...futureRow, expiresAt: new Date(NOW - 1000) });
-    const expired = await fail(() => service.redeem('ZZZZ-ZZZZ'));
-
-    prisma.pairingCode.findFirst.mockResolvedValue({ ...futureRow, usedAt: new Date() });
-    const used = await fail(() => service.redeem('ZZZZ-ZZZZ'));
-
-    const notString = await fail(() => service.redeem(12345 as unknown));
-
-    const messages = [wrong, expired, used, notString].map((e) => e.message);
-    expect(new Set(messages).size).toBe(1);
-    expect(messages[0]).toBe('invalid or expired code');
-    expect(wrong).toBeInstanceOf(BadRequestException);
-  });
-
-  it('redeem: ротация до погашения → код выдаёт НОВЫЙ активный ключ', async () => {
-    prisma.pairingCode.findFirst.mockResolvedValue({ ...futureRow });
-    prisma.tablet.findUnique.mockResolvedValue({
-      ...tabletActive,
-      apiKey: { key: 'rpro_rotated', isActive: true },
-    });
-    prisma.pairingCode.updateMany.mockResolvedValue({ count: 1 });
-
-    const res = await service.redeem('ABCD-EFGH');
-    expect(res.apiKey).toBe('rpro_rotated');
-  });
-
-  it('redeem: неактивный ключ → 400; гонка погашения (count=0) → 400', async () => {
-    prisma.pairingCode.findFirst.mockResolvedValue({ ...futureRow });
-    prisma.tablet.findUnique.mockResolvedValue({ ...tabletActive, apiKey: { key: 'rpro_old', isActive: false } });
-    const inactive = await fail(() => service.redeem('ABCD-EFGH'));
-    expect(inactive.message).toBe('invalid or expired code');
-
-    prisma.tablet.findUnique.mockResolvedValue({ ...tabletActive });
-    prisma.pairingCode.updateMany.mockResolvedValue({ count: 0 });
-    const race = await fail(() => service.redeem('ABCD-EFGH'));
-    expect(race.message).toBe('invalid or expired code');
-  });
-});
-```
-
-- [ ] **Step 4: Запустить — тест должен упасть «module not found»**
-
-Run: `npm test -- pairing.service`
-Expected: FAIL (`Cannot find module './pairing.service'`).
-
-- [ ] **Step 5: Реализовать PairingService**
-
-Create `src\pairing\pairing.service.ts`:
-
-```ts
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { createHash, randomInt } from 'crypto';
-
-/** Алфавит без 0/O/1/I/L — ровно 32 символа (совпадает с клиентской проверкой). */
-export const ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
-const CODE_LEN = 8;
-const TTL_MS = 15 * 60 * 1000;
-export const INVALID_CODE_MSG = 'invalid or expired code';
-
-export interface PairResult {
-  apiKey: string;
-  tabletId: string;
-  organizationId: string;
-  organizationName: string;
-  pointName: string | null;
-}
-
-@Injectable()
-export class PairingService {
-  constructor(private prisma: PrismaService) {}
-
-  /** Одноразовый код для планшета: в ответе — открытый код, в БД — только SHA-256. */
-  async generateForTablet(organizationId: string, tabletId: string) {
-    const tablet = await this.prisma.tablet.findFirst({
-      where: { id: tabletId, organizationId },
-    });
-    if (!tablet) throw new NotFoundException('Tablet not found');
-
-    let code = '';
-    for (let i = 0; i < CODE_LEN; i++) code += ALPHABET[randomInt(ALPHABET.length)];
-    const expiresAt = new Date(Date.now() + TTL_MS);
-
-    await this.prisma.pairingCode.upsert({
-      where: { tabletId },
-      create: { tabletId, codeHash: this.hash(code), expiresAt },
-      update: { codeHash: this.hash(code), expiresAt, usedAt: null },
-    });
-
-    return { code: `${code.slice(0, 4)}-${code.slice(4)}`, expiresAt };
-  }
-
-  /** Обмен кода на текущий активный ключ планшета. Любая неудача → единый 400. */
-  async redeem(input: unknown): Promise<PairResult> {
-    const invalid = () => new BadRequestException(INVALID_CODE_MSG);
-
-    if (typeof input !== 'string') throw invalid();
-    const normalized = input.replace(/[^0-9A-Za-z]/g, '').toUpperCase();
-
-    const pc = await this.prisma.pairingCode.findFirst({
-      where: { codeHash: this.hash(normalized) },
-    });
-    if (!pc || pc.usedAt || pc.expiresAt.getTime() <= Date.now()) throw invalid();
-
-    const tablet = await this.prisma.tablet.findUnique({
-      where: { id: pc.tabletId },
-      include: { apiKey: true, organization: true },
-    });
-    if (!tablet || !tablet.apiKey || !tablet.apiKey.isActive) throw invalid();
-
-    // Погашение атомарно: проигравший гонку получает тот же 400
-    const claimed = await this.prisma.pairingCode.updateMany({
-      where: { id: pc.id, usedAt: null },
-      data: { usedAt: new Date() },
-    });
-    if (claimed.count === 0) throw invalid();
-
-    return {
-      apiKey: tablet.apiKey.key,
-      tabletId: tablet.id,
-      organizationId: tablet.organizationId,
-      organizationName: tablet.organization.name,
-      pointName: tablet.pointName,
-    };
-  }
-
-  private hash(code: string): string {
-    return createHash('sha256').update(code).digest('hex');
-  }
-}
-```
-
-- [ ] **Step 6: Запустить — тесты должны пройти**
-
-Run: `npm test -- pairing.service`
-Expected: PASS (все `it` зелёные).
-
-- [ ] **Step 7: Гейт**
-
-Run: `npm test`
-Expected: PASS (первый рабочий тест-прогон в репо).
-
----
-
-### Task 3: POST /api/pair — controller, модуль, HTTP e2e (TDD)
-
-**Files:**
-- Create: `server\src\pairing\pairing.controller.ts`
-- Create: `server\src\pairing\pairing.module.ts`
-- Test: `server\src\pairing\pairing-http.spec.ts`
-- Modify: `server\src\app.module.ts`
-
-**Interfaces:**
-- Consumes: `PairingService.redeem` (Task 2).
-- Produces: `POST /api/pair` → 200 `PairResult` | 400 `{"message":"invalid or expired code"}`; `PairingModule` (export) — импортируется TabletsModule в Task 4.
-
-- [ ] **Step 1: Написать падающий HTTP-тест**
-
-Create `src\pairing\pairing-http.spec.ts`:
-
-```ts
-import { BadRequestException, INestApplication, ValidationPipe } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
-import * as request from 'supertest';
-import { PairingModule } from './pairing.module';
-import { PairingService } from './pairing.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { ConfigModule } from '@nestjs/config';
-
-describe('POST /api/pair (HTTP)', () => {
-  let app: INestApplication;
-  const redeem = jest.fn();
-
-  beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [ConfigModule.forRoot({ isGlobal: true }), PairingModule],
-    })
-      .overrideProvider(PairingService).useValue({ redeem })
-      .overrideProvider(PrismaService).useValue({})
-      .compile();
-
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
-    await app.init();
-  });
-
-  afterAll(() => app.close());
-
-  beforeEach(() => redeem.mockReset());
-
-  it('200: возвращает результат сервиса', async () => {
-    const payload = {
-      apiKey: 'rpro_x', tabletId: 't1', organizationId: 'o1',
-      organizationName: 'Org', pointName: null,
-    };
-    redeem.mockResolvedValue(payload);
-    const res = await request(app.getHttpServer()).post('/api/pair').send({ code: 'ABCD-EFGH' });
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual(payload);
-    expect(redeem).toHaveBeenCalledWith('ABCD-EFGH');
-  });
-
-  it('400: тело ошибки — ровно {"message":"invalid or expired code"}', async () => {
-    redeem.mockRejectedValue(new BadRequestException('invalid or expired code'));
-    const res = await request(app.getHttpServer()).post('/api/pair').send({ code: 'WRONG123' });
-    expect(res.status).toBe(400);
-    expect(res.body).toEqual({ message: 'invalid or expired code' });
-  });
-});
-```
-
-- [ ] **Step 2: Запустить — упасть**
-
-Run: `npm test -- pairing-http`
-Expected: FAIL (`Cannot find module './pairing.module'`).
-
-- [ ] **Step 3: Controller + Module**
-
-Create `src\pairing\pairing.controller.ts`:
-
-```ts
-import { Body, Controller, HttpCode, Logger, Post, Req } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { PairingService } from './pairing.service';
-
-@ApiTags('Pairing')
-@Controller('pair')
-export class PairingController {
-  private readonly logger = new Logger(PairingController.name);
-
-  constructor(private readonly pairingService: PairingService) {}
-
-  @Post()
-  @HttpCode(200)
-  @ApiOperation({ summary: 'Exchange one-time pairing code for tablet API key (tablet)' })
-  async pair(@Req() req: { ip?: string }, @Body() body: { code?: unknown }) {
-    try {
-      return await this.pairingService.redeem(body?.code);
-    } catch (e) {
-      // Диагностика попыток: IP + результат (спека §5); ответ клиенту не меняется
-      this.logger.warn(`pairing rejected ip=${req.ip} error=${(e as Error).message}`);
-      throw e;
-    }
-  }
-}
-```
-
-Create `src\pairing\pairing.module.ts`:
-
-```ts
-import { Module } from '@nestjs/common';
-import { PairingController } from './pairing.controller';
-import { PairingService } from './pairing.service';
-
-@Module({
-  controllers: [PairingController],
-  providers: [PairingService],
-  exports: [PairingService],
-})
-export class PairingModule {}
-```
-
-- [ ] **Step 4: Зарегистрировать в AppModule**
-
-`src\app.module.ts` — добавить импорт и в `imports`:
-```ts
-import { PairingModule } from './pairing/pairing.module';
-```
-```ts
-    TabletsModule,
-    PairingModule,
-```
-
-- [ ] **Step 5: Запустить HTTP-тесты**
-
-Run: `npm test -- pairing-http`
-Expected: PASS.
-
-- [ ] **Step 6: Гейт**
-
-Run: `npm test && npm run build`
-Expected: PASS + без ошибок компиляции.
-
----
-
-### Task 4: Admin-endpoint выдачи кода (TDD)
-
-**Files:**
-- Modify: `server\src\tablets\tablets.controller.ts` (новый маршрут)
-- Modify: `server\src\tablets\tablets.service.ts` (делегирование — НЕТ: генерация в PairingService; контроллер получает PairingService)
-- Modify: `server\src\tablets\tablets.module.ts` (imports PairingModule)
-- Test: `server\src\tablets\tablets-http.spec.ts`
-
-**Interfaces:**
-- Consumes: `PairingService.generateForTablet` (Task 2), `PairingModule` (Task 3).
-- Produces: `POST /api/tablets/:id/pairing-code` (Bearer) → 200 `{ code, expiresAt }`; 404 если планшет не найден/чужой.
-
-- [ ] **Step 1: Падающий HTTP-тест**
-
-Create `src\tablets\tablets-http.spec.ts`:
-
-```ts
-import { INestApplication } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
-import * as request from 'supertest';
-import { TabletsModule } from './tablets.module';
-import { PairingService } from '../pairing/pairing.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { ConfigModule } from '@nestjs/config';
-
-describe('POST /api/tablets/:id/pairing-code (HTTP)', () => {
-  let app: INestApplication;
-
-  beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [ConfigModule.forRoot({ isGlobal: true }), TabletsModule],
-    })
-      .overrideProvider(PairingService).useValue({ generateForTablet: jest.fn() })
-      .overrideProvider(PrismaService).useValue({})
-      .compile();
-
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api');
-    await app.init();
-  });
-
-  afterAll(() => app.close());
-
-  it('маршрут существует: без токена → 401 от JwtAuthGuard (несуществующий маршрут дал бы 404)', async () => {
-    const res = await request(app.getHttpServer()).post('/api/tablets/t1/pairing-code');
-    expect(res.status).toBe(401);
-  });
-
-  it('некорректный id не роняет сервер (guard отвечает до сервиса)', async () => {
-    const res = await request(app.getHttpServer())
-      .post('/api/tablets/%2E%2E/pairing-code');
-    expect(res.status).not.toBe(500);
-  });
-});
-```
-
-*Логика генерации (org-принадлежность, TTL, хэш) покрыта тестами `PairingService` в Task 2; здесь фиксируется наличие маршрута и guard'а.*
-
-- [ ] **Step 2: Запустить — упасть**
-
-Run: `npm test -- tablets-http`
-Expected: FAIL (маршрута ещё нет: Nest вернёт 404 «Cannot POST», а тест ожидает 401 от guard'а).
-
-- [ ] **Step 3: Маршрут в TabletsController**
-
-`src\tablets\tablets.controller.ts` — импорт + новый метод + `constructor`:
-
-```ts
-import { PairingService } from '../pairing/pairing.service';
-```
-```ts
-  constructor(
-    private tabletsService: TabletsService,
-    private pairingService: PairingService,
-  ) {}
-```
-```ts
-  @Post(':id/pairing-code')
-  @ApiOperation({ summary: 'Issue a one-time pairing code for the tablet' })
-  async pairingCode(@Param('id') id: string, @Req() req) {
-    return this.pairingService.generateForTablet(req.user.organizationId, id);
-  }
-```
-
-`src\tablets\tablets.module.ts` — добавить `PairingModule` в `imports`:
-
-```ts
-import { PairingModule } from '../pairing/pairing.module';
-```
-```ts
-@Module({
-  imports: [PairingModule],
-  ...
-})
-```
-
-- [ ] **Step 4: Запустить тесты**
-
-Run: `npm test -- tablets-http`
-Expected: PASS (маршрут больше не 404; guard отвечает 401 без токена).
-
-- [ ] **Step 5: Гейт**
-
-Run: `npm test && npm run build`
-Expected: PASS.
-
----
-
-### Task 5: pointName в создании/обновлении планшета (TDD)
-
-**Files:**
-- Modify: `server\src\tablets\tablets.service.ts`
-- Modify: `server\src\tablets\tablets.controller.ts` (тип body)
-- Test: `server\src\tablets\tablets.service.spec.ts`
-
-**Interfaces:**
-- Consumes: `Tablet.pointName` (Task 1).
-- Produces: `create(orgId, { name, pointName? })`, `update(id, orgId, { name?, isActive?, pointName? })` — кабинет передаёт имя Точки; ответы содержат `pointName` (Task 3 pairing читает его уже сейчас).
+- Consumes: `TabletsService.create(organizationId, data)`, `update(tabletId, organizationId, data)` (существующие).
+- Produces: `create(orgId, { name: string; pointName?: string })`, `update(id, orgId, { name?; isActive?; pointName? })`; колонка `Tablet.pointName String?` — читают Task 2 (ответ `pair`) и клиент.
 
 - [ ] **Step 1: Падающий тест**
 
@@ -629,23 +56,27 @@ describe('TabletsService pointName', () => {
 
   beforeEach(() => {
     prisma = {
-      tablet: { create: jest.fn(), findFirst: jest.fn(), update: jest.fn(), delete: jest.fn() },
+      apiKey: { create: jest.fn().mockResolvedValue({ id: 'k1' }) },
+      tablet: {
+        create: jest.fn().mockResolvedValue({}),
+        findFirst: jest.fn(),
+        update: jest.fn().mockResolvedValue({}),
+        delete: jest.fn(),
+      },
     };
     service = new TabletsService(prisma as any);
   });
 
   it('create: pointName уходит в БД, без него — null', async () => {
-    prisma.tablet.create.mockResolvedValue({});
-    await service.create('o1', { name: 'Планшет 1', pointName: 'Точка №2' } as any);
+    await service.create('o1', { name: 'Планшет 1', pointName: 'Точка №2' });
     expect(prisma.tablet.create.mock.calls[0][0].data.pointName).toBe('Точка №2');
 
-    await service.create('o1', { name: 'Планшет 2' } as any);
+    await service.create('o1', { name: 'Планшет 2' });
     expect(prisma.tablet.create.mock.calls[1][0].data.pointName).toBeNull();
   });
 
-  it('update: pointName передаётся дальше, отсутствие не затирает (prisma игнорирует undefined)', async () => {
+  it('update: pointName доходит до prisma, чужие поля не появляются', async () => {
     prisma.tablet.findFirst.mockResolvedValue({ id: 't1' });
-    prisma.tablet.update.mockResolvedValue({});
     await service.update('t1', 'o1', { pointName: 'Новое имя' });
     expect(prisma.tablet.update.mock.calls[0][0].data).toEqual({ pointName: 'Новое имя' });
 
@@ -657,90 +88,433 @@ describe('TabletsService pointName', () => {
 
 - [ ] **Step 2: Запустить — упасть**
 
-Run: `npm test -- tablets.service`
-Expected: FAIL (`data.pointName` undefined / `create` не принимает поле).
+Run: `npm.cmd test -- tablets.service`
+Expected: FAIL (1st test: `data.pointName` === undefined).
 
-- [ ] **Step 3: Реализация**
+- [ ] **Step 3: Схема + миграция**
+
+`prisma\schema.prisma`, в `model Tablet` после `name String`:
+
+```prisma
+  pointName      String?
+```
+
+Run (в `C:\projects\RSP`):
+```
+npx.cmd prisma generate
+npx.cmd prisma migrate dev --name tablet_point_name
+```
+Prerequisite: локальная БД поднята — если команда сообщает об отсутствии соединения, выполнить `docker.cmd compose up -d postgres` (или `docker compose up -d postgres`) и повторить. Fallback при ошибке дрейфа: `npx.cmd prisma db push`.
+Expected: миграция создана в `prisma/migrations/`, `Generated Prisma Client`.
+
+- [ ] **Step 4: Реализация**
 
 `src\tablets\tablets.service.ts`:
 
+- сигнатура `create(organizationId: string, data: { name: string; pointName?: string })`, в `data` объект `tablets.create` добавить строку:
 ```ts
-  async create(organizationId: string, data: { name: string; pointName?: string }) {
-    const key = `rpro_${uuidv4().replace(/-/g, '')}`;
-
-    return this.prisma.tablet.create({
-      data: {
-        organizationId,
-        name: data.name,
         pointName: data.pointName ?? null,
-        apiKey: {
-          create: {
-            organizationId,
-            key,
-            tabletName: data.name,
-          },
-        },
-      },
-      include: { apiKey: true },
-    });
-  }
 ```
+- сигнатура `update(tabletId: string, organizationId: string, data: { name?: string; isActive?: boolean; pointName?: string })` (тело пробрасывается в `prisma.tablet.update` как есть — Prisma игнорирует `undefined`).
 
-Сигнатуру `update` расширить: `data: { name?: string; isActive?: boolean; pointName?: string }` (тело пробрасывается в `prisma.tablet.update` без изменений — undefined поля Prisma игнорирует).
+`src\tablets\tablets.controller.ts`:
+- create: `@Body() body: { name: string; pointName?: string }`
+- update: `@Body() body: { name?: string; isActive?: boolean; pointName?: string }`
 
-`src\tablets\tablets.controller.ts` — типы body: `@Body() body: { name: string; pointName?: string }` (create) и `@Body() body: { name?: string; isActive?: boolean; pointName?: string }` (update).
+- [ ] **Step 5: Запустить — пройти**
 
-- [ ] **Step 4: Запустить — пройти**
+Run: `npm.cmd test -- tablets.service`
+Expected: PASS (2 tests).
 
-Run: `npm test -- tablets.service`
-Expected: PASS.
+- [ ] **Step 6: Гейт + коммит + push**
 
-- [ ] **Step 5: Гейт**
-
-Run: `npm test && npm run build`
-Expected: PASS.
+```
+npm.cmd test
+npx.cmd tsc --noEmit -p tsconfig.json
+npm.cmd run build
+git add -A
+git commit -m "feat(tablets): pointName field for install location"
+git push origin main
+```
+Expected: 25/25 тестов (23 + 2), tsc/build чистые, push принят.
 
 ---
 
-### Task 6: Rate-limit на /api/pair + README
+### Task 2: Апгрейд pairing — SHA-256, CSPRNG, TTL 15 мин, единый 400 (TDD)
 
 **Files:**
-- Modify: `server\package.json` (зависимость)
-- Modify: `server\src\app.module.ts` (ThrottlerModule + APP_GUARD)
-- Modify: `server\src\pairing\pairing.controller.ts` (@Throttle)
-- Modify: `server\src\pairing\pairing-http.spec.ts` (тест 429)
-- Modify: `server\README.md` (таблицы эндпоинтов)
+- Test: `C:\projects\RSP\src\tablets\pairing.spec.ts` (новый)
+- Modify: `C:\projects\RSP\src\tablets\tablets.service.ts`
 
 **Interfaces:**
-- Consumes: Task 3.
-- Produces: `POST /api/pair` ограничен 10 req/min/IP (429 сверх лимита); дефолт для остальных — 100/min (дашборд не заденет).
+- Consumes: колонки `Tablet.pairingPin`, `pairingPinExpiresAt` (существующие), `pointName` (Task 1).
+- Produces: `pair(input: unknown): Promise<{ tabletId; tabletName; apiKey; organizationId; organizationName; pointName }>`; `create`/`regeneratePin` возвращают `pairingPin` **открытым текстом** (в БД — хэш) — Task 3 тестирует `pair` через HTTP.
 
-- [ ] **Step 1: Установить throttler**
+- [ ] **Step 1: Падающий тест**
 
-Run: `npm install @nestjs/throttler`
-Expected: зависимость в `dependencies`.
-
-- [ ] **Step 2: Падающий тест 429**
-
-Добавить в конец `src\pairing\pairing-http.spec.ts`:
+Create `src\tablets\pairing.spec.ts`:
 
 ```ts
-describe('rate limit POST /api/pair', () => {
+import { TabletsService } from './tablets.service';
+import { BadRequestException } from '@nestjs/common';
+import { createHash } from 'crypto';
+
+const sha = (s: string) => createHash('sha256').update(s).digest('hex');
+
+describe('TabletsService pairing upgrade', () => {
+  let prisma: any;
+  let service: TabletsService;
+
+  beforeEach(() => {
+    prisma = {
+      apiKey: { create: jest.fn().mockResolvedValue({ id: 'k1' }), update: jest.fn() },
+      tablet: {
+        create: jest.fn().mockResolvedValue({}),
+        findFirst: jest.fn(),
+        update: jest.fn().mockResolvedValue({}),
+        delete: jest.fn(),
+      },
+    };
+    service = new TabletsService(prisma as any);
+  });
+
+  it('create: код 8 символов алфавита, в БД — SHA-256, в ответе — открытый код, TTL 15 мин', async () => {
+    prisma.tablet.create.mockImplementation(async (q: any) => q.data);
+    const res = await service.create('o1', { name: 'Планшет' });
+
+    const code: string = res.pairingPin;
+    expect(code).toMatch(/^[2-9ABCDEFGHJKMNPQRSTUVWXYZ]{8}$/);
+
+    const data = prisma.tablet.create.mock.calls[0][0].data;
+    expect(data.pairingPin).toBe(sha(code));
+    const delta = data.pairingPinExpiresAt.getTime() - Date.now();
+    expect(delta).toBeGreaterThan(14 * 60 * 1000);
+    expect(delta).toBeLessThanOrEqual(15 * 60 * 1000 + 2000);
+  });
+
+  it('regenerate-pin: новый код, хэш в БД, ответ содержит открытый код', async () => {
+    prisma.tablet.findFirst.mockResolvedValue({ id: 't1', organizationId: 'o1' });
+    prisma.tablet.update.mockImplementation(async (q: any) => q.data);
+    const res = await service.regeneratePin('t1', 'o1');
+
+    expect(res.pairingPin).toMatch(/^[2-9ABCDEFGHJKMNPQRSTUVWXYZ]{8}$/);
+    const data = prisma.tablet.update.mock.calls[0][0].data;
+    expect(data.pairingPin).toBe(sha(res.pairingPin));
+    expect(data.pairingPinExpiresAt.getTime()).toBeLessThanOrEqual(Date.now() + 15 * 60 * 1000 + 2000);
+  });
+
+  it('pair: нормализация входа, поиск по хэшу, успех с org/точкой, PIN погашается', async () => {
+    prisma.tablet.findFirst.mockResolvedValue({
+      id: 't1',
+      name: 'Планшет у входа',
+      organizationId: 'o1',
+      pointName: 'Точка №1',
+      organization: { name: 'ООО Ромашка' },
+      apiKey: { key: 'rpro_x', isActive: true },
+    });
+    prisma.tablet.update.mockResolvedValue({});
+
+    const res = await service.pair('abcd-efgh');
+
+    const where = prisma.tablet.findFirst.mock.calls[0][0].where;
+    expect(where.pairingPin).toBe(sha('ABCDEFGH'));
+    expect(where.pairingPinExpiresAt.gt.getTime()).toBeLessThanOrEqual(Date.now() + 1000);
+
+    expect(res).toEqual({
+      tabletId: 't1',
+      tabletName: 'Планшет у входа',
+      apiKey: 'rpro_x',
+      organizationId: 'o1',
+      organizationName: 'ООО Ромашка',
+      pointName: 'Точка №1',
+    });
+    expect(prisma.tablet.update.mock.calls[0][0].data).toEqual({
+      pairingPin: null,
+      pairingPinExpiresAt: null,
+    });
+  });
+
+  const msgOf = async (fn: () => Promise<unknown>) =>
+    (await fn().catch((e) => e as Error)).message;
+
+  it('pair: неверный / просроченный(поиск вернул null) / неактивный ключ / не-строка → единое сообщение', async () => {
+    prisma.tablet.findFirst.mockResolvedValue(null);
+    const notFound = await msgOf(() => service.pair('ZZZZZZZZ'));
+
+    prisma.tablet.findFirst.mockResolvedValue({
+      id: 't1',
+      organizationId: 'o1',
+      organization: { name: 'Org' },
+      apiKey: { key: 'k', isActive: false },
+    });
+    const inactive = await msgOf(() => service.pair('ZZZZZZZZ'));
+
+    const notString = await msgOf(() => service.pair(123 as unknown as string));
+
+    expect(new Set([notFound, inactive, notString]).size).toBe(1);
+    expect(notFound).toBe('Invalid or expired pairing code');
+    expect(inactive).toBeInstanceOf(BadRequestException);
+  });
+
+  it('rotateApiKey: попутно гасит PIN (старый код не действует после ротации)', async () => {
+    prisma.tablet.findFirst.mockResolvedValue({
+      id: 't1',
+      apiKeyId: 'k1',
+      apiKey: { id: 'k1' },
+      name: 'Н',
+    });
+    await service.rotateApiKey('t1', 'o1');
+    const data = prisma.tablet.update.mock.calls[0][0].data;
+    expect(data.pairingPin).toBeNull();
+    expect(data.pairingPinExpiresAt).toBeNull();
+  });
+});
+```
+
+- [ ] **Step 2: Запустить — упасть**
+
+Run: `npm.cmd test -- pairing.spec`
+Expected: FAIL (код — 6 цифр/открытый текст, поиск plaintext, ответ без org и т.д.).
+
+- [ ] **Step 3: Реализация апгрейда**
+
+`src\tablets\tablets.service.ts` — импорты и константы:
+
+```ts
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { v4 as uuidv4 } from 'uuid';
+import { createHash, randomInt } from 'crypto';
+
+/** Алфавит без 0/O/1/I/L — ровно 32 символа (совпадает с клиентской проверкой). */
+export const ALPHABET = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+const CODE_LEN = 8;
+const TTL_MS = 15 * 60 * 1000;
+export const INVALID_CODE_MSG = 'Invalid or expired pairing code';
+```
+
+В классе:
+
+```ts
+  private readonly logger = new Logger(TabletsService.name);
+```
+
+`create` — генерация и хранение (заменить строки `const pin = this.generatePin();` и `pairingPin: pin`):
+
+```ts
+    const code = this.generateCode();
+```
+```ts
+        pairingPin: this.codeHash(code),
+        pairingPinExpiresAt: new Date(Date.now() + TTL_MS),
+```
+и завернуть результат, чтобы ответ содержал открытый код:
+
+```ts
+    const tablet = await this.prisma.tablet.create({ ... }); // как выше, pointName из Task 1
+    return { ...tablet, pairingPin: code };
+```
+
+`pair` — целиком заменить:
+
+```ts
+  /**
+   * Pair a tablet using an 8-char one-time code (SHA-256 at rest, TTL 15 min).
+   * Called by the Android app. Returns the API key + organization/point meta.
+   */
+  async pair(input: unknown) {
+    const invalid = () => new BadRequestException(INVALID_CODE_MSG);
+
+    if (typeof input !== 'string') throw invalid();
+    const normalized = input.replace(/[^0-9A-Za-z]/g, '').toUpperCase();
+    if (normalized.length !== CODE_LEN) throw invalid();
+
+    const tablet = await this.prisma.tablet.findFirst({
+      where: {
+        pairingPin: this.codeHash(normalized),
+        pairingPinExpiresAt: { gt: new Date() },
+      },
+      include: {
+        apiKey: { select: { key: true, isActive: true } },
+        organization: { select: { name: true } },
+      },
+    });
+
+    if (!tablet) throw invalid();
+
+    if (!tablet.apiKey || !tablet.apiKey.isActive) {
+      this.logger.warn(`pairing rejected: api key inactive tablet=${tablet.id}`);
+      throw invalid();
+    }
+
+    // Одноразовость: гасим PIN после успешной выдачи ключа
+    await this.prisma.tablet.update({
+      where: { id: tablet.id },
+      data: { pairingPin: null, pairingPinExpiresAt: null },
+    });
+
+    return {
+      tabletId: tablet.id,
+      tabletName: tablet.name,
+      apiKey: tablet.apiKey.key,
+      organizationId: tablet.organizationId,
+      organizationName: tablet.organization.name,
+      pointName: tablet.pointName,
+    };
+  }
+```
+
+`regeneratePin` — заменить генерацию и вернуть открытый код:
+
+```ts
+    const code = this.generateCode();
+    const updated = await this.prisma.tablet.update({
+      where: { id: tabletId },
+      data: {
+        pairingPin: this.codeHash(code),
+        pairingPinExpiresAt: new Date(Date.now() + TTL_MS),
+      },
+      select: {
+        id: true,
+        name: true,
+        pairingPin: true,
+        pairingPinExpiresAt: true,
+      },
+    });
+    return { ...updated, pairingPin: code };
+```
+
+Приватные методы (заменяют `generatePin` — удалить старый `Math.random`-метод):
+
+```ts
+  private generateCode(): string {
+    let code = '';
+    for (let i = 0; i < CODE_LEN; i++) code += ALPHABET[randomInt(ALPHABET.length)];
+    return code;
+  }
+
+  private codeHash(code: string): string {
+    return createHash('sha256').update(code).digest('hex');
+  }
+```
+
+- [ ] **Step 4: Запустить — пройти**
+
+Run: `npm.cmd test -- pairing.spec`
+Expected: PASS (5 tests).
+
+- [ ] **Step 5: Гейт + коммит + push**
+
+```
+npm.cmd test
+npx.cmd tsc --noEmit -p tsconfig.json
+npm.cmd run build
+git add -A
+git commit -m "feat(security): pairing code hashed at rest, CSPRNG 8-char, TTL 15m, uniform 400"
+git push origin main
+```
+Expected: 30/30 тестов, tsc/build чистые.
+
+---
+
+### Task 3: Rate-limit 10/мин + IP-лог + HTTP e2e (TDD)
+
+**Files:**
+- Modify: `C:\projects\RSP\package.json` (зависимости)
+- Modify: `C:\projects\RSP\src\app.module.ts`
+- Modify: `C:\projects\RSP\src\tablets\tablets.controller.ts`
+- Test: `C:\projects\RSP\src\tablets\pairing-http.spec.ts` (новый)
+- Modify: `C:\projects\RSP\README.md`
+
+**Interfaces:**
+- Consumes: `TabletsService.pair` (Task 2), `INVALID_CODE_MSG` (Task 2).
+- Produces: `POST /api/tablets/pair` — 10 req/min/IP (429), единый тело 400, warn-лог с IP; дефолт остальных маршрутов — 100/мин.
+
+- [ ] **Step 1: Зависимости**
+
+```
+npm.cmd install @nestjs/throttler
+npm.cmd install -D @nestjs/testing supertest @types/supertest
+```
+Expected: добавлены в package.json (package-lock обновится).
+
+- [ ] **Step 2: Падающий HTTP-тест**
+
+Create `src\tablets\pairing-http.spec.ts`:
+
+```ts
+import { BadRequestException, INestApplication } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import * as request from 'supertest';
+import { TabletsModule } from './tablets.module';
+import { TabletsService } from './tablets.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { ConfigModule } from '@nestjs/config';
+
+describe('POST /api/tablets/pair (HTTP)', () => {
+  let app: INestApplication;
+  const pair = jest.fn();
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [ConfigModule.forRoot({ isGlobal: true }), TabletsModule],
+    })
+      .overrideProvider(TabletsService).useValue({ pair })
+      .overrideProvider(PrismaService).useValue({})
+      .compile();
+
+    app = moduleRef.createNestApplication();
+    app.setGlobalPrefix('api');
+    await app.init();
+  });
+
+  afterAll(() => app.close());
+  beforeEach(() => pair.mockReset());
+
+  it('400: тело ошибки — ровно {"message":"Invalid or expired pairing code"}', async () => {
+    pair.mockRejectedValue(new BadRequestException('Invalid or expired pairing code'));
+    const res = await request(app.getHttpServer())
+      .post('/api/tablets/pair')
+      .send({ pin: 'ZZZZZZZZ' });
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ message: 'Invalid or expired pairing code' });
+  });
+
+  it('успех: JSON-ответ сервиса проходит без искажений', async () => {
+    pair.mockResolvedValue({
+      tabletId: 't1', tabletName: 'Н', apiKey: 'rpro_x',
+      organizationId: 'o1', organizationName: 'ООО', pointName: 'Точка',
+    });
+    const res = await request(app.getHttpServer())
+      .post('/api/tablets/pair')
+      .send({ pin: 'ABCD2345' });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      tabletId: 't1', tabletName: 'Н', apiKey: 'rpro_x',
+      organizationId: 'o1', organizationName: 'ООО', pointName: 'Точка',
+    });
+    expect(pair).toHaveBeenCalledWith('ABCD2345');
+  });
+
   it('11-й запрос за минуту → 429', async () => {
-    redeem.mockResolvedValue({ apiKey: 'k', tabletId: 't', organizationId: 'o', organizationName: 'O', pointName: null });
+    pair.mockResolvedValue({ tabletId: 't', tabletName: 'n', apiKey: 'k', organizationId: 'o', organizationName: 'O', pointName: null });
     let last = 0;
     for (let i = 0; i < 11; i++) {
-      last = (await request(app.getHttpServer()).post('/api/pair').send({ code: 'ABCD-EFGH' })).status;
+      last = (await request(app.getHttpServer())
+        .post('/api/tablets/pair')
+        .send({ pin: 'ABCD2345' })).status;
     }
     expect(last).toBe(429);
   });
 });
 ```
 
-Run: `npm test -- pairing-http`
-Expected: FAIL (11-й запрос — 200, throttler не подключён).
+- [ ] **Step 3: Запустить — упасть на 429**
 
-- [ ] **Step 3: Подключить throttler**
+Run: `npm.cmd test -- pairing-http`
+Expected: FAIL — 3-й тест (11-й запрос вернёт 200, throttler не подключён).
+
+- [ ] **Step 4: Подключить throttler**
 
 `src\app.module.ts`:
 
@@ -749,48 +523,111 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 ```
 ```ts
+@Module({
   imports: [
     ThrottlerModule.forRoot({ throttlers: [{ ttl: 60_000, limit: 100 }] }),
-    ConfigModule.forRoot({ isGlobal: true }),
-    ...
+    // ...остальные imports без изменений
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+})
 ```
 
-`src\pairing\pairing.controller.ts`:
+`src\tablets\tablets.controller.ts` — импорты:
 
 ```ts
+import { Logger } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 ```
+
+в класс:
+
 ```ts
-  @Post()
-  @HttpCode(200)
+  private readonly logger = new Logger(TabletsController.name);
+```
+
+маршрут `pair` — заменить на:
+
+```ts
+  @Post('pair')
   @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @ApiOperation({ summary: 'Pair tablet using 8-char one-time code (called by Android app)' })
+  async pair(@Req() req: AuthenticatedRequest, @Body() body: { pin?: unknown }) {
+    try {
+      return await this.tabletsService.pair(body?.pin);
+    } catch (e) {
+      // Диагностика попыток (спека §5): IP + причина; ответ клиенту не меняется
+      this.logger.warn(`pairing rejected ip=${req.ip} error=${(e as Error).message}`);
+      throw e;
+    }
+  }
 ```
 
-- [ ] **Step 4: Запустить — пройти**
+(сигнатура сервиса теперь `pair(input: unknown)` — тип body тоже `pin?: unknown`.)
 
-Run: `npm test -- pairing-http`
-Expected: PASS (11-й → 429).
+- [ ] **Step 5: Запустить — пройти**
 
-- [ ] **Step 5: README**
+Run: `npm.cmd test -- pairing-http`
+Expected: PASS (3 tests).
 
-`README.md` — в таблицу Tablets добавить строку:
+- [ ] **Step 6: README**
+
+`README.md`:
+- строка таблицы: `| POST | \`/api/tablets/pair\` | - | **Pair tablet using 8-char one-time code (SHA-256, TTL 15 min, rate-limit 10/min)** |` (заменить 6-digit-строку);
+- секция `## Tablet Pairing Flow (PIN-code)` → заменить «6-digit PIN» на «8-char code (base32: 2-9 A-H J K M N P-Z)», шаг 4 пример: `App → POST /api/tablets/pair { pin: "K7M2QX9F" }`, добавить примечание: код одноразовый, действует 15 минут.
+
+- [ ] **Step 7: Гейт + коммит + push**
+
 ```
-| POST | `/api/tablets/:id/pairing-code` | Bearer | Issue one-time pairing code |
+npm.cmd test
+npx.cmd tsc --noEmit -p tsconfig.json
+npm.cmd run build
+git add -A
+git commit -m "feat(security): rate-limit pairing endpoint, IP audit log, http e2e"
+git push origin main
 ```
-Новый блок после таблицы Tablets:
-```
-### Pairing
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/api/pair` | — | Exchange pairing code → tablet API key (rate-limited 10/min) |
-```
+Expected: 33/33 тестов, tsc/build чистые.
 
-- [ ] **Step 6: Гейт**
+---
 
-Run: `npm test && npm run build`
-Expected: PASS — фаза A завершена.
+### Task 4: Совместимость dashboard + финальные гейты сервера
+
+**Files:**
+- Modify (если потребуется): `C:\projects\RSP\dashboard\src\pages\SettingsPage.tsx`
+- Read-only проверка: `dashboard\src\api\client.ts`
+
+**Interfaces:**
+- Consumes: новый формат кода (Task 2).
+
+- [ ] **Step 1: Проверить отображение кода в dashboard**
+
+Run:
+```
+Select-String -Path "C:\projects\RSP\dashboard\src\pages\SettingsPage.tsx" -Pattern "newTabletPin|pairingPin|maxLength|inputMode|parseInt|Number\("
+```
+Ожидание: `pairingPin` хранится в строковом состоянии (`setNewTabletPin((t as any).pairingPin || '')`) и отображается как текст — менять НЕ нужно. Если найдена числовая валидация/`maxLength=6`/`parseInt` — убрать ограничение (код теперь 8 символов, алфавитный), оставив строковое отображение.
+
+- [ ] **Step 2: Сборка dashboard**
+
+Run: `npm.cmd run build` (в каталоге `C:\projects\RSP\dashboard`)
+Expected: `tsc && vite build` без ошибок.
+
+- [ ] **Step 3: Полные гейты сервера**
+
+```
+npm.cmd test
+npx.cmd tsc --noEmit -p tsconfig.json
+npm.cmd run build
+```
+Expected: все зелёные (33/33).
+
+- [ ] **Step 4: Коммит (если были правки) + push**
+
+```
+git add -A
+git commit -m "fix(dashboard): render 8-char pairing code as text"
+git push origin main
+```
+Если правок не было — коммит не делать, зафиксировать вывод в отчёте.
 
 ---
 
@@ -798,7 +635,7 @@ Expected: PASS — фаза A завершена.
 
 База: `C:\projects\feedback-app\.worktrees\kiosk-mode` (ветка `kiosk-mode`).
 
-### Task 7: Ядро привязки клиента (TDD)
+### Task 5: Ядро привязки клиента (TDD)
 
 **Files:**
 - Create: `app\src\main\java\com\respondent\pro\cabinet\KabinetConfig.kt`
@@ -810,7 +647,8 @@ Expected: PASS — фаза A завершена.
 - Test: `app\src\test\java\com\respondent\pro\cabinet\CabinetBinderTest.kt`
 
 **Interfaces:**
-- Produces (используют Task 8–9): `normalizePairingCode(raw: String): String?`; `class CabinetBinder(storage: BindingStorage, api: CabinetApi)` с `suspend fun pair(rawCode: String): PairOutcome`, `fun currentBinding(): StoredBinding?`, `fun unbindLocal()`, `fun isRevoked(httpCode: Int): Boolean`; `enum class PairOutcome { PAIRED, BUSY, INVALID_CODE, NETWORK_ERROR, REVOKED }`; `sealed class CabinetState` (`Unbound`, `Binding`, `Bound(organizationName, pointName)`, `Failed(kind: FailKind)`); `enum class FailKind { INVALID_CODE, NETWORK, REVOKED }`; `interface CabinetApi { @POST("pair") suspend fun pair(@Body body: PairRequest): PairResponse }`; `data class PairResponse(apiKey, tabletId, organizationId, organizationName, pointName)`; `interface BindingStorage { read/write/clear }` + `data class StoredBinding`.
+- Consumes (контракт Task 2/3): `POST {BASE_URL}tablets/pair` body `{pin}` → 200 `{apiKey, tabletId, tabletName, organizationId, organizationName, pointName}` | 400 `{"message":"Invalid or expired pairing code"}` | 429.
+- Produces (используют Task 6–7): `normalizePairingCode(raw: String): String?`; `class CabinetBinder(storage, api)` с `suspend fun pair(rawCode): PairOutcome`, `currentBinding()`, `unbindLocal()`, `isRevoked(httpCode): Boolean`; `enum class PairOutcome { PAIRED, BUSY, INVALID_CODE, NETWORK_ERROR, REVOKED }`; `sealed class CabinetState` + `enum class FailKind`; `interface CabinetApi @POST("tablets/pair") suspend fun pair(@Body body: PairRequest): PairResponse`; `PairRequest(pin)`, `PairResponse(apiKey, tabletId, organizationId, organizationName, pointName)`; `BindingStorage` + `StoredBinding`.
 
 - [ ] **Step 1: Зависимость в build.gradle.kts** (после `implementation("androidx.room:room-ktx:2.6.1")`):
 
@@ -850,7 +688,12 @@ class CabinetBinderTest {
 
     private class FakeApi(private val respond: suspend (PairRequest) -> PairResponse) : CabinetApi {
         var calls = 0
-        override suspend fun pair(body: PairRequest): PairResponse { calls++; return respond(body) }
+        var lastBody: PairRequest? = null
+        override suspend fun pair(body: PairRequest): PairResponse {
+            calls++
+            lastBody = body
+            return respond(body)
+        }
     }
 
     private val ok = PairResponse("rpro_k", "t1", "o1", "ООО Ромашка", "Точка")
@@ -869,11 +712,12 @@ class CabinetBinderTest {
         assertNull(normalizePairingCode("абвгд"))
     }
 
-    @Test fun `pair success stores binding`() = runBlocking {
+    @Test fun `pair success sends normalized pin and stores binding`() = runBlocking {
         val storage = FakeStorage()
         val api = FakeApi { ok }
         val outcome = CabinetBinder(storage, api).pair("abcd-efgh")
         assertEquals(PairOutcome.PAIRED, outcome)
+        assertEquals("ABCDEFGH", api.lastBody?.pin)
         assertEquals("rpro_k", storage.data?.apiKey)
         assertEquals("Точка", storage.data?.pointName)
         assertEquals(1, api.calls)
@@ -896,7 +740,7 @@ class CabinetBinderTest {
 
     @Test fun `http 401 maps to REVOKED and clears storage`() = runBlocking {
         val storage = FakeStorage()
-        storage.data = ok.let { StoredBinding(it.apiKey, it.tabletId, it.organizationId, it.organizationName, it.pointName) }
+        storage.data = StoredBinding("rpro_old", "t1", "o1", "Org", null)
         val api = FakeApi { throw httpError(401) }
         assertEquals(PairOutcome.REVOKED, CabinetBinder(storage, api).pair("abcd-efgh"))
         assertEquals(1, storage.clearCalls)
@@ -941,6 +785,8 @@ class CabinetBinderTest {
 }
 ```
 
+**Примечание:** `PairResponse` — ровно те 5 полей, что возвращает сервер (лишние `tabletName` из JSON Gson игнорирует, поля в data class нет — безопасно).
+
 - [ ] **Step 3: Запустить — упасть**
 
 Run: `.\gradlew.bat testDebugUnitTest --tests "*CabinetBinderTest*"`
@@ -969,11 +815,11 @@ import retrofit2.http.POST
 
 interface CabinetApi {
     /** Обмен одноразового pairing-кода на API-ключ планшета. */
-    @POST("pair")
+    @POST("tablets/pair")
     suspend fun pair(@Body body: PairRequest): PairResponse
 }
 
-data class PairRequest(val code: String)
+data class PairRequest(val pin: String)
 
 data class PairResponse(
     val apiKey: String,
@@ -1064,7 +910,7 @@ package com.respondent.pro.cabinet
 
 enum class FailKind { INVALID_CODE, NETWORK, REVOKED }
 
-/** Состояние экрана «Кабинет» (UI + ViewModel). */
+/** Состояние экрана «Привязка к кабинету» (UI + ViewModel). */
 sealed class CabinetState {
     object Unbound : CabinetState()
     object Binding : CabinetState()
@@ -1085,8 +931,8 @@ enum class PairOutcome { PAIRED, BUSY, INVALID_CODE, NETWORK_ERROR, REVOKED }
 
 /**
  * Нормализация ввода: убирает пробелы/дефисы, верхний регистр.
- * Алфавит обязан совпадать с серверным PairingService.ALPHABET
- * (2-9 A-H J K M N P-Z — без 0/O/1/I/L).
+ * Алфавит обязан совпадать с серверным (TabletsService.ALPHABET):
+ * 2-9 A-H J K M N P-Z — без 0/1/I/L/O.
  */
 fun normalizePairingCode(raw: String): String? {
     val cleaned = raw.filter { it.isLetterOrDigit() }.uppercase()
@@ -1158,26 +1004,27 @@ class CabinetBinder(
 - [ ] **Step 5: Запустить — пройти**
 
 Run: `.\gradlew.bat testDebugUnitTest --tests "*CabinetBinderTest*"`
-Expected: PASS.
+Expected: PASS (10 tests).
 
-- [ ] **Step 6: Коммит**
+- [ ] **Step 6: Коммит + push**
 
 ```powershell
 git add app/src/main/java/com/respondent/pro/cabinet app/build.gradle.kts app/src/test/java/com/respondent/pro/cabinet
 git commit -m "feat(cabinet): pairing-code normalization, encrypted binding storage, binder"
+git push origin kiosk-mode
 ```
 
 ---
 
-### Task 8: DI и состояние в SettingsViewModel
+### Task 6: DI и состояние в SettingsViewModel
 
 **Files:**
 - Modify: `app\src\main\java\com\respondent\pro\di\AppModule.kt`
 - Modify: `app\src\main\java\com\respondent\pro\viewmodel\SettingsViewModel.kt`
 
 **Interfaces:**
-- Consumes: всё из Task 7.
-- Produces: Hilt-провайдеры `CabinetApi`, `BindingStorage`; `SettingsViewModel.cabinetState: StateFlow<CabinetState>`, `fun pairCabinet(rawCode: String)`, `fun unbindCabinet()` — использует Task 9.
+- Consumes: всё из Task 5.
+- Produces: Hilt-провайдеры `CabinetApi`, `BindingStorage`; `SettingsViewModel.cabinetState: StateFlow<CabinetState>`, `fun pairCabinet(rawCode: String)`, `fun unbindCabinet()` — использует Task 7.
 
 - [ ] **Step 1: Провайдеры в AppModule**
 
@@ -1278,26 +1125,27 @@ import com.respondent.pro.cabinet.StoredBinding
 Run: `$env:JAVA_HOME="C:\Users\leonb\.jdks\jbr-21.0.11"; .\gradlew.bat assembleDebug testDebugUnitTest`
 Expected: BUILD SUCCESSFUL, все тесты зелёные.
 
-*Почему без юнит-теста ViewModel: логика живёт в `CabinetBinder` (Task 7, покрыта 10 тестами); SettingsViewModel в проекте никогда не тестировался — консистентность кодовой базы.*
+*Почему без юнит-теста ViewModel: логика живёт в `CabinetBinder` (Task 5, покрыта 10 тестами); SettingsViewModel в проекте никогда не тестировался — консистентность кодовой базы.*
 
-- [ ] **Step 4: Коммит**
+- [ ] **Step 4: Коммит + push**
 
 ```powershell
 git add app/src/main/java/com/respondent/pro/di/AppModule.kt app/src/main/java/com/respondent/pro/viewmodel/SettingsViewModel.kt
 git commit -m "feat(cabinet): DI providers and binding state in SettingsViewModel"
+git push origin kiosk-mode
 ```
 
 ---
 
-### Task 9: UI «Кабинет» + строки (TDD строк)
+### Task 7: UI «Привязка к кабинету» + строки (TDD строк)
 
 **Files:**
-- Modify: `app\src\main\java\com\respondent\pro\ui\i18n\AppStrings.kt` (11 строк ru+en)
+- Modify: `app\src\main\java\com\respondent\pro\ui\i18n\AppStrings.kt` (12 строк ru+en)
 - Create: `app\src\test\java\com\respondent\pro\ui\i18n\CabinetStringsTest.kt`
 - Modify: `app\src\main\java\com\respondent\pro\ui\screens\SettingsScreen.kt` (CabinetCard)
 
 **Interfaces:**
-- Consumes: `cabinetState/pairCabinet/unbindCabinet` (Task 8), `CabinetState` (Task 7).
+- Consumes: `cabinetState/pairCabinet/unbindCabinet` (Task 6), `CabinetState` (Task 5).
 
 - [ ] **Step 1: Падающий тест строк**
 
@@ -1377,7 +1225,7 @@ Expected: FAIL (`unresolved reference: kabinetCardTitle`).
     kabinetBindButton = "Привязать",
     kabinetBinding = "Привязка…",
     kabinetUnbindButton = "Отвязать",
-    kabinetHint = "Код: в кабинете → Планшеты → «Получить код привязки». Действует 15 минут, одноразовый.",
+    kabinetHint = "Код: в кабинете → Планшеты → «Перевыпустить код». Действует 15 минут, одноразовый.",
     kabinetErrorInvalid = "Неверный или просроченный код",
     kabinetErrorNetwork = "Нет связи с сервером",
     kabinetRevoked = "Привязка отменена",
@@ -1394,18 +1242,18 @@ Expected: FAIL (`unresolved reference: kabinetCardTitle`).
     kabinetBindButton = "Bind",
     kabinetBinding = "Binding…",
     kabinetUnbindButton = "Unbind",
-    kabinetHint = "Code: in the cabinet → Tablets → \"Get pairing code\". Valid for 15 minutes, single-use.",
+    kabinetHint = "Code: in the cabinet → Tablets → \"Regenerate code\". Valid 15 minutes, single-use.",
     kabinetErrorInvalid = "Invalid or expired code",
     kabinetErrorNetwork = "Server unreachable",
     kabinetRevoked = "Binding revoked",
 ```
 
-*Примечание: `kabinetStatusBoundPoint` в ru/en содержит литерал `$s` — в Kotlin-строке экранируется `\$`. В тесте плейсхолдеры проверяются как `%1$s`/`%2$s`.*
+*Примечание: `kabinetStatusBoundPoint` содержит литерал `$s` — в Kotlin-строке экранируется `\$`; в тесте плейсхолдеры проверяются как `%1$s`/`%2$s`.*
 
 - [ ] **Step 4: Запустить — пройти**
 
 Run: `.\gradlew.bat testDebugUnitTest --tests "*CabinetStringsTest*"`
-Expected: PASS.
+Expected: PASS (3 tests).
 
 - [ ] **Step 5: UI — CabinetCard**
 
@@ -1425,7 +1273,7 @@ Expected: PASS.
     val cabinetState by viewModel.cabinetState.collectAsState()
 ```
 
-В call-site, сразу после `KioskCard(...)`:
+В call-site, сразу после блока `KioskCard(...)`:
 
 ```kotlin
             // 14. Привязка к кабинету
@@ -1545,51 +1393,54 @@ private fun CabinetCard(
 }
 ```
 
-- [ ] **Step 6: Гейт**
+- [ ] **Step 6: Гейт + коммит + push**
 
-Run: `$env:JAVA_HOME="C:\Users\leonb\.jdks\jbr-21.0.11"; .\gradlew.bat assembleDebug testDebugUnitTest`
-Expected: BUILD SUCCESSFUL, все тесты зелёные.
-
-- [ ] **Step 7: Коммит**
-
-```powershell
+```
+$env:JAVA_HOME="C:\Users\leonb\.jdks\jbr-21.0.11"; .\gradlew.bat assembleDebug testDebugUnitTest
 git add app/src/main/java/com/respondent/pro/ui app/src/test/java/com/respondent/pro/ui/i18n/CabinetStringsTest.kt
 git commit -m "feat(cabinet): binding section in settings with status, code input and unbind"
+git push origin kiosk-mode
 ```
+Expected: BUILD SUCCESSFUL, все тесты зелёные.
 
 ---
 
-### Task 10: Финальная верификация и ledger
+### Task 8: Финальная верификация и ledger
 
 **Files:**
-- Modify: `.superpowers\sdd\2026-09-28-kiosk-mode\progress.md` (запись цикла)
+- Modify: `.superpowers\sdd\2026-09-28-kiosk-mode\progress.md`
 
 **Interfaces:**
-- Consumes: Task 1–9.
+- Consumes: Task 1–7.
 
 - [ ] **Step 1: Полный прогон клиента**
 
 Run: `$env:JAVA_HOME="C:\Users\leonb\.jdks\jbr-21.0.11"; .\gradlew.bat assembleDebug testDebugUnitTest`
-Expected: BUILD SUCCESSFUL, все тесты зелёные (31 прежний + CabinetBinderTest 10 + CabinetStringsTest 3).
+Expected: BUILD SUCCESSFUL; 31 прежний + CabinetBinderTest 10 + CabinetStringsTest 3 = 44.
 
 - [ ] **Step 2: Полный прогон сервера**
 
-Run (каталог сервера): `npm test && npm run build`
-Expected: PASS.
+Run (в `C:\projects\RSP`):
+```
+npm.cmd test
+npx.cmd tsc --noEmit -p tsconfig.json
+npm.cmd run build
+```
+Expected: 33/33, tsc/build чистые; `git status` чистый, `git log origin/main` содержит коммиты Task 1–4.
 
 - [ ] **Step 3: Устройственная проверка UI (без сервера)**
 
-Планшет подключить по USB; `adb install -r` свежего APK; пройти Настройки → секция «Привязка к кабинету»: статус «Не привязан», поле кода, кнопка. Снять uia-dump (проверка присутствия текстов). Ожидание: ввод мусора → «Неверный или просроченный код» (локально, без сети). Автоповорот восстановить (`accelerometer_rotation=1`).
+Планшет подключить по USB; `adb install -r` свежего APK; Настройки → секция «Привязка к кабинету»: статус «Не привязан», поле кода, кнопка. Снять uia-dump (тексты присутствуют). Проверка: ввод мусора («1») → «Неверный или просроченный код» локально, без сети. В конце — `accelerometer_rotation=1`.
 
 - [ ] **Step 4: Ledger**
 
-Добавить в `progress.md` запись цикла: спека, план, коммиты Task 7–9, результаты тестов (клиент/сервер), статус E2E (ожидает деплоя сервера — отдельное согласие пользователя).
+Добавить в `progress.md` запись цикла: спека ревизии A, план, коммиты клиента (Task 5–7) и сервера (Task 1–4, push `RSP/main`), результаты тестов (клиент 44 / сервер 33), статус E2E (ожидает деплоя сервера — отдельное согласие пользователя).
 
-- [ ] **Step 5: Push**
+- [ ] **Step 5: Push клиента**
 
-Run: `git push origin kiosk-mode`
-Expected: `... kiosk-mode -> kiosk-mode`.
+Run: `git push origin kiosk-mode` (если есть незапушенные коммиты).
+Expected: push принят.
 
 - [ ] **Step 6: E2E-цикл (ТОЛЬКО по явному «да» пользователя)**
 
-1) Деплой сервера: `./deploy.sh` на VPS (сторонний side-effect — спросить!); 2) создать планшет+код (curl с JWT); 3) ввод кода на планшете → «Привязан: …»; 4) `rotate-key` в кабинете → следующий авторизованный запрос → состояние «Привязка отменена» (в v1 авторизованных запросов ещё нет — триггер проверяется unit-тестом Task 7 `isRevoked`; живой триггер появится в этапе 2 спеки). Визуал — пользователь.
+1) Деплой RSP на VPS (`deploy.sh` — side-effect, спросить!); примечание: **выданные до деплоя PIN невалидны** (хэш вместо plaintext) — перевыпустить коды; 2) локально снять БД/миграции (`docker compose` + `migrate dev` уже накатил pointName — на VPS при деплое `migrate deploy`); 3) dashboard: создать планшет → получить код; 4) планшет: ввод кода → «Привязан: Орг · Точка»; 5) «Перевыпустить код» → старый код → «Неверный или просроченный код». Визуал — пользователь.
