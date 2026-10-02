@@ -39,6 +39,8 @@ import com.respondent.pro.kiosk.KioskStatus
 import com.respondent.pro.kiosk.ProvisioningQr
 import com.respondent.pro.kiosk.QrCheck
 import com.respondent.pro.kiosk.QrDiagnosticsResult
+import com.respondent.pro.cabinet.CabinetState
+import com.respondent.pro.cabinet.FailKind
 import com.respondent.pro.kiosk.SettingsExcursionOverlay
 import com.respondent.pro.ui.i18n.AppStrings
 import com.respondent.pro.ui.i18n.LocalAppStrings
@@ -71,6 +73,7 @@ fun SettingsScreen(
     var qrPassword by remember { mutableStateOf("") }
     var qrBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     var qrDiagExpanded by remember { mutableStateOf(false) }
+    var cabinetCode by remember { mutableStateOf("") }
 
     // Payload QR-провижининга собирается одинаково для показа и отправки
     val buildQrPayload = {
@@ -85,6 +88,7 @@ fun SettingsScreen(
     val kioskStatus by viewModel.kioskStatus.collectAsState()
     val qrDiagnostics by viewModel.qrDiagnostics.collectAsState()
     val isRunningQrDiagnostics by viewModel.isRunningQrDiagnostics.collectAsState()
+    val cabinetState by viewModel.cabinetState.collectAsState()
     LaunchedEffect(Unit) { viewModel.refreshKioskStatus() }
 
     // В настройках возвращаем навигационную панель: её кнопка-шеврон скрывает
@@ -589,6 +593,18 @@ fun SettingsScreen(
                 qrDiagnostics = qrDiagnostics,
                 isRunningQrDiagnostics = isRunningQrDiagnostics,
                 onRunQrDiagnostics = { viewModel.runQrDiagnostics() }
+            )
+
+            // 14. Привязка к кабинету
+            CabinetCard(
+                state = cabinetState,
+                code = cabinetCode,
+                onCodeChange = { cabinetCode = it.uppercase().take(11) },
+                onBind = { viewModel.pairCabinet(cabinetCode) },
+                onUnbind = {
+                    cabinetCode = ""
+                    viewModel.unbindCabinet()
+                }
             )
 
             // Диалог с QR-изображением
@@ -1106,6 +1122,106 @@ private fun KioskCard(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CabinetCard(
+    state: CabinetState,
+    code: String,
+    onCodeChange: (String) -> Unit,
+    onBind: () -> Unit,
+    onUnbind: () -> Unit
+) {
+    val strings = LocalAppStrings.current
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = strings.kabinetCardTitle,
+                style = MaterialTheme.typography.titleMedium
+            )
+
+            val statusText = when (state) {
+                CabinetState.Unbound -> strings.kabinetStatusUnbound
+                CabinetState.Binding -> strings.kabinetBinding
+                is CabinetState.Bound ->
+                    if (state.pointName.isNullOrBlank()) {
+                        String.format(strings.kabinetStatusBound, state.organizationName)
+                    } else {
+                        String.format(
+                            strings.kabinetStatusBoundPoint,
+                            state.organizationName,
+                            state.pointName
+                        )
+                    }
+                is CabinetState.Failed -> when (state.kind) {
+                    FailKind.INVALID_CODE -> strings.kabinetErrorInvalid
+                    FailKind.NETWORK -> strings.kabinetErrorNetwork
+                    FailKind.REVOKED -> strings.kabinetRevoked
+                }
+            }
+            Text(
+                text = statusText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = when (state) {
+                    is CabinetState.Bound -> MaterialTheme.colorScheme.primary
+                    CabinetState.Binding -> MaterialTheme.colorScheme.onSurfaceVariant
+                    else -> MaterialTheme.colorScheme.error
+                },
+                modifier = Modifier.padding(top = 4.dp)
+            )
+
+            if (state is CabinetState.Bound) {
+                Button(
+                    onClick = onUnbind,
+                    modifier = Modifier.padding(top = 8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) {
+                    Text(strings.kabinetUnbindButton)
+                }
+            } else {
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = onCodeChange,
+                    label = { Text(strings.kabinetCodeLabel) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    singleLine = true,
+                    enabled = state != CabinetState.Binding
+                )
+                Button(
+                    onClick = onBind,
+                    enabled = state != CabinetState.Binding,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                ) {
+                    Text(
+                        text = if (state == CabinetState.Binding) {
+                            strings.kabinetBinding
+                        } else {
+                            strings.kabinetBindButton
+                        }
+                    )
+                }
+                Text(
+                    text = strings.kabinetHint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
             }
         }
     }
