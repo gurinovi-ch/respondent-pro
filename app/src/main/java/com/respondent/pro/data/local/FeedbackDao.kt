@@ -25,6 +25,10 @@ interface FeedbackDao {
     @Query("UPDATE feedbacks SET errorMessage = :error WHERE id = :id")
     suspend fun markError(id: Long, error: String)
 
+    /** Персистит сгенерированный clientKey в legacy-строку (однократно: только если ключа ещё нет). */
+    @Query("UPDATE feedbacks SET clientKey = :key WHERE id = :id AND clientKey IS NULL")
+    suspend fun assignClientKey(id: Long, key: String)
+
     @Query("DELETE FROM feedbacks WHERE id = :id")
     suspend fun delete(id: Long)
 }

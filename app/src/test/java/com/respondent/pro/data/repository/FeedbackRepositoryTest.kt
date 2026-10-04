@@ -24,6 +24,9 @@ class FeedbackRepositoryTest {
         override suspend fun markError(id: Long, error: String) {}
         override suspend fun delete(id: Long) {}
         override suspend fun markServerSynced(id: Long, at: Long) {}
+        override suspend fun assignClientKey(id: Long, key: String) {
+            if (stored?.id == id && stored?.clientKey == null) stored = stored?.copy(clientKey = key)
+        }
     }
 
     @Test fun `save возвращает ту же запись — id заполнен, clientKey не изменился`() = runBlocking {

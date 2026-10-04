@@ -68,6 +68,8 @@ class CommentViewModel @Inject constructor(
                         val sent = feedbackSender.send(stored)
                         if (sent) Log.d("CommentViewModel", "Feedback ${stored.id} sent ✓")
                         else Log.w("CommentViewModel", "Feedback ${stored.id} not sent yet (queued)")
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         Log.e("CommentViewModel", "Background send failed", e)
                     }

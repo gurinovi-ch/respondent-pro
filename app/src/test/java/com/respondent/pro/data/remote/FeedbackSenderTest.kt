@@ -21,6 +21,9 @@ class FeedbackSenderTest {
         override suspend fun markError(id: Long, error: String) {}
         override suspend fun delete(id: Long) {}
         override suspend fun markServerSynced(id: Long, at: Long) {}
+        override suspend fun assignClientKey(id: Long, key: String) {
+            pending = pending.map { if (it.id == id && it.clientKey == null) it.copy(clientKey = key) else it }
+        }
     }
 
     private class FakeStorage(var data: StoredBinding?) : BindingStorage {

@@ -1,6 +1,7 @@
 package com.respondent.pro.data.remote
 
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import com.respondent.pro.cabinet.BindingStorage
 import com.respondent.pro.cabinet.CabinetApi
 import com.respondent.pro.cabinet.FeedbackPayload
@@ -13,10 +14,11 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
-enum class UploadOutcome { SYNCED, RETRY, REVOKED }
+enum class UploadOutcome { SYNCED, RETRY, REVOKED, REJECTED }
 
 /** Канал в C web (только для привязанного планшета). */
 interface ServerChannel : FeedbackChannel
@@ -39,8 +41,15 @@ class CabinetChannel @Inject constructor(
             Log.d(TAG, "Not bound to cabinet — skip upload of ${feedback.id}")
             return UploadOutcome.RETRY
         }
+        // Строки без clientKey (legacy): генерируем UUID и персистим в строку.
+        // legacy-<id> не годится: локальный id автоинкрементный и совпадает
+        // на разных планшетах → дубль по @@unique([organizationId, clientKey])
+        // на сервере и потеря чужого отзыва. Персист = стабильность между ретраями.
+        val clientKey = feedback.clientKey ?: UUID.randomUUID().toString().also {
+            feedbackDao.assignClientKey(feedback.id, it)
+        }
         return try {
-            cabinetApi.postFeedback(payload(feedback))
+            cabinetApi.postFeedback(payload(feedback, clientKey))
             feedbackDao.markServerSynced(feedback.id, System.currentTimeMillis())
             Log.d(TAG, "Feedback ${feedback.id} uploaded ✓")
             UploadOutcome.SYNCED
@@ -53,6 +62,12 @@ class CabinetChannel @Inject constructor(
                 Log.w(TAG, "API key revoked (${e.code()}) — unbinding")
                 bindingStorage.clear()
                 UploadOutcome.REVOKED
+            } else if (e.code() == 400 || e.code() == 422) {
+                // Сервер отверг payload: ретрай бессмысленен (рерайт мусора),
+                // но данные не теряем — помечаем ошибкой для UI и идём дальше
+                Log.e(TAG, "Upload ${feedback.id} rejected by server: HTTP ${e.code()} — invalid payload, skipping")
+                feedbackDao.markError(feedback.id, "HTTP ${e.code()}: ${e.message()}")
+                UploadOutcome.REJECTED
             } else {
                 Log.w(TAG, "Upload ${feedback.id} failed: HTTP ${e.code()}")
                 UploadOutcome.RETRY
@@ -73,6 +88,7 @@ class CabinetChannel @Inject constructor(
         for (feedback in pending) {
             when (upload(feedback)) {
                 UploadOutcome.SYNCED -> sent++
+                UploadOutcome.REJECTED -> continue
                 UploadOutcome.RETRY -> break
                 UploadOutcome.REVOKED -> break
             }
@@ -82,6 +98,7 @@ class CabinetChannel @Inject constructor(
     }
 
     /** Обёртка для тестов: сборка payload из отдельных полей. */
+    @VisibleForTesting
     suspend fun uploadFeedback(
         id: Long = 0L,
         rating: Int = 4,
@@ -93,13 +110,13 @@ class CabinetChannel @Inject constructor(
     )
 
     /** Один объект = оценка + комментарий + время касания + источник (спека §4). */
-    private fun payload(feedback: Feedback): FeedbackPayload = FeedbackPayload(
+    private fun payload(feedback: Feedback, clientKey: String): FeedbackPayload = FeedbackPayload(
         rating = feedback.rating,
         text = feedback.text,
         startedAt = if (feedback.startedAt > 0) isoUtc(feedback.startedAt) else null,
         source = "APK",
         sourceRef = null,
-        clientKey = feedback.clientKey ?: "legacy-${feedback.id}",
+        clientKey = clientKey,
     )
 
     /** ISO-8601 UTC: java.time недоступен на minSdk 24. */

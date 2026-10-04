@@ -9,6 +9,7 @@ import com.respondent.pro.data.repository.FeedbackRepository
 import com.respondent.pro.data.repository.SettingsRepository
 import com.respondent.pro.data.repository.AppSettings
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -47,12 +48,16 @@ class FeedbackViewModel @Inject constructor(
             while (true) {
                 val sent = try {
                     feedbackSender.sendUnsent()
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     Log.e("FeedbackViewModel", "Retry failed", e)
                     0
                 }
                 val pending = try {
                     feedbackRepository.getUnsent().size
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     Log.e("FeedbackViewModel", "Queue read failed", e)
                     null // очередь неизвестна — не считаем пустой

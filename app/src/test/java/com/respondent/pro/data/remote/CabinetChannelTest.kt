@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -22,18 +23,27 @@ import retrofit2.Response
 import java.io.IOException
 import java.util.Calendar
 import java.util.Date
+import java.util.UUID
 
 class CabinetChannelTest {
 
     private class FakeDao(var pending: List<Feedback> = emptyList()) : FeedbackDao {
         val synced = mutableListOf<Pair<Long, Long>>()
+        val assignedKeys = mutableMapOf<Long, String>()
+        val errors = mutableMapOf<Long, String>()
+        var assignCalls = 0
         override fun getAll(): Flow<List<Feedback>> = flowOf(pending)
         override suspend fun getUnsent(): List<Feedback> = pending
         override suspend fun insert(feedback: Feedback): Long = 1L
         override suspend fun markSent(id: Long) {}
-        override suspend fun markError(id: Long, error: String) {}
+        override suspend fun markError(id: Long, error: String) { errors[id] = error }
         override suspend fun delete(id: Long) {}
         override suspend fun markServerSynced(id: Long, at: Long) { synced += id to at }
+        override suspend fun assignClientKey(id: Long, key: String) {
+            assignCalls++
+            assignedKeys[id] = key
+            pending = pending.map { if (it.id == id && it.clientKey == null) it.copy(clientKey = key) else it }
+        }
     }
 
     private class FakeStorage(var data: StoredBinding?) : BindingStorage {
@@ -95,13 +105,26 @@ class CabinetChannelTest {
         assertNull(api.bodies.single().startedAt)
     }
 
-    @Test fun `clientKey отсутствует (legacy-строка) — ключ выводится из id, стабилен между ретраями`() = runBlocking {
+    @Test fun `legacy-строка (clientKey = null) — генерируется UUID, персистится в строку, уходит в payload`() = runBlocking {
+        val api = FakeApi(); val dao = FakeDao(); val storage = FakeStorage(bound)
+        val outcome = channel(api, dao, storage).upload(feedback(id = 42L, clientKey = null))
+
+        assertEquals(UploadOutcome.SYNCED, outcome)
+        val key = dao.assignedKeys[42L]
+        assertNotNull(key) // assignClientKey(id, <UUID>) вызван
+        UUID.fromString(key!!) // сгенерирован именно UUID, не legacy-<id>
+        assertEquals(key, api.bodies.single().clientKey) // payload уже с персистнутым ключом
+    }
+
+    @Test fun `повторная отправка legacy-строки — тот же clientKey (стабильность через персист)`() = runBlocking {
         val api = FakeApi(); val storage = FakeStorage(bound)
-        val ch = channel(api, FakeDao(), storage)
-        ch.uploadFeedback(id = 42L, clientKey = null)
-        ch.uploadFeedback(id = 42L, clientKey = null)
-        assertEquals("legacy-42", api.bodies[0].clientKey)
-        assertEquals(api.bodies[0].clientKey, api.bodies[1].clientKey)
+        val dao = FakeDao(pending = listOf(feedback(id = 42L, clientKey = null))) // строка в очереди без ключа
+        val ch = channel(api, dao, storage)
+        ch.upload(dao.pending.single()) // первая отправка: ключ сгенерирован и персистнут
+        ch.upload(dao.pending.single()) // повтор: строка, как её видит getUnsent после персиста
+
+        assertEquals(api.bodies[0].clientKey, api.bodies[1].clientKey) // тот же ключ
+        assertEquals(1, dao.assignCalls) // ключ не перегенерируется между ретраями
     }
 
     @Test fun `без привязки — сервер не дёргаем`() = runBlocking {
@@ -129,6 +152,33 @@ class CabinetChannelTest {
         val outcome = channel(api, dao, storage).upload(feedback())
         assertEquals(UploadOutcome.RETRY, outcome)
         assertTrue(dao.synced.isEmpty())
+    }
+
+    @Test fun `400 и 422 — REJECTED (markError с HTTP-контекстом), запись не синхронизирована`() = runBlocking {
+        listOf(400, 422).forEach { code ->
+            val api = FakeApi { throw httpError(code) }
+            val dao = FakeDao(); val storage = FakeStorage(bound)
+            val outcome = channel(api, dao, storage).upload(feedback())
+
+            assertEquals(UploadOutcome.REJECTED, outcome)
+            assertTrue(dao.errors.getValue(1L).startsWith("HTTP $code")) // видимость в UI
+            assertTrue(dao.synced.isEmpty()) // данные не теряем: запись остаётся в очереди
+        }
+    }
+
+    @Test fun `drain — ядовитая строка (400) пропускается, остальные уходят (continue, не break)`() = runBlocking {
+        var calls = 0
+        val api = FakeApi {
+            calls++
+            if (calls == 1) throw httpError(400) else FeedbackAck("s$calls", "t", "t")
+        }
+        val dao = FakeDao(pending = listOf(feedback(id = 1), feedback(id = 2, clientKey = "uuid-2")))
+        val sent = channel(api, dao, FakeStorage(bound)).drain(dao.getUnsent())
+
+        assertEquals(1, sent) // возврат = 1
+        assertEquals(listOf(2L), dao.synced.map { it.first }) // вторая СИНХРОНИЗИРОВАНА
+        assertTrue(dao.errors.getValue(1L).startsWith("HTTP 400")) // первой — markError
+        assertEquals(2, calls) // вторая отправка не пропущена
     }
 
     @Test fun `drain — грузит по очереди, прерывается на первой ошибке`() = runBlocking {
