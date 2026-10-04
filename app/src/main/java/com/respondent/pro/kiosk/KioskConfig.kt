@@ -10,7 +10,7 @@ object KioskConfig {
     const val OWNER_REPO = "gurinovi-ch/respondent-pro"
 
     const val APK_DOWNLOAD_URL =
-        "https://github.com/gurinovi-ch/respondent-pro/releases/download/v1.0-test/RESPONDENT.PRO.apk"
+        "https://github.com/gurinovi-ch/respondent-pro/releases/download/v1.1-test/RESPONDENT.PRO.apk"
 
     /**
      * URL-safe Base64 SHA-256 СЕРТИФИКАТА ПОДПИСИ APK (PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM).
