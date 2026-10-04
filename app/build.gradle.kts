@@ -94,6 +94,8 @@ dependencies {
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
 
     testImplementation("junit:junit:4.13.2")
+    // MockWebServer для теста интерсептора X-API-Key (версия = okhttp)
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     // Смоук-тест encodeQr: нужен реальный android.graphics.Bitmap
     testImplementation("org.robolectric:robolectric:4.14.1")
 }

@@ -7,6 +7,10 @@ interface CabinetApi {
     /** Обмен одноразового pairing-кода на API-ключ планшета. */
     @POST("tablets/pair")
     suspend fun pair(@Body body: PairRequest): PairResponse
+
+    /** Отзыв в C web: оценка + комментарий одной записью. */
+    @POST("feedbacks")
+    suspend fun postFeedback(@Body body: FeedbackPayload): FeedbackAck
 }
 
 data class PairRequest(val pin: String)
@@ -17,4 +21,21 @@ data class PairResponse(
     val organizationId: String,
     val organizationName: String,
     val pointName: String?
+)
+
+data class FeedbackPayload(
+    val rating: Int,
+    val text: String,
+    /** ISO-8601 UTC время первого касания звезды; null — сервер берёт время приёма. */
+    val startedAt: String?,
+    val source: String = "APK",
+    val sourceRef: String? = null,
+    /** UUID строки Room — идемпотентность ретраев. */
+    val clientKey: String? = null,
+)
+
+data class FeedbackAck(
+    val id: String,
+    val createdAt: String,
+    val startedAt: String,
 )

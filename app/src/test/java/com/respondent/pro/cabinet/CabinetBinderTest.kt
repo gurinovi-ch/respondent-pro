@@ -32,6 +32,11 @@ class CabinetBinderTest {
             lastBody = body
             return respond(body)
         }
+
+        // Не используется в binder-тестах; интерфейс расширен в Task 2.
+        override suspend fun postFeedback(body: FeedbackPayload): FeedbackAck {
+            throw UnsupportedOperationException("not used in binder tests")
+        }
     }
 
     private val ok = PairResponse("rpro_k", "t1", "o1", "ООО Ромашка", "Точка")

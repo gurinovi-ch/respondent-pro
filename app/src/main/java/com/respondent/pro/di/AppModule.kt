@@ -2,6 +2,7 @@ package com.respondent.pro.di
 
 import android.content.Context
 import androidx.room.Room
+import com.respondent.pro.cabinet.ApiKeyInterceptor
 import com.respondent.pro.cabinet.BindingStorage
 import com.respondent.pro.cabinet.CabinetApi
 import com.respondent.pro.cabinet.EncryptedBindingStorage
@@ -57,9 +58,13 @@ object AppModule {
     /** API кабинета — отдельный Retrofit со своим baseUrl (не путать с Telegram). */
     @Provides
     @Singleton
-    fun provideCabinetApi(): CabinetApi {
+    fun provideCabinetApi(bindingStorage: BindingStorage): CabinetApi {
+        val client = okhttp3.OkHttpClient.Builder()
+            .addInterceptor(ApiKeyInterceptor(bindingStorage))
+            .build()
         return Retrofit.Builder()
             .baseUrl(KabinetConfig.BASE_URL)
+            .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(CabinetApi::class.java)
