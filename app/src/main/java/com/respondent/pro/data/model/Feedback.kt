@@ -12,5 +12,9 @@ data class Feedback(
     val startedAt: Long = System.currentTimeMillis(),
     val sentToTelegram: Boolean = false,
     val isComplete: Boolean = true,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    /** Момент доставки на сервер C web; null = ещё не доставлен. */
+    val serverSyncedAt: Long? = null,
+    /** UUID строки — идемпотентность ретраев на сервере. */
+    val clientKey: String? = java.util.UUID.randomUUID().toString(),
 )
