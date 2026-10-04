@@ -38,16 +38,32 @@ class FeedbackViewModel @Inject constructor(
         viewModelScope.launch {
             settingsRepository.settings.collect { _settings.value = it }
         }
-        // Retry sending unsent feedbacks on startup (delayed to let DataStore load)
+        // Дренаж очереди: досылаем то, что не ушло (C web или Telegram/e-mail
+        // — в зависимости от режима). 30 с при непустой очереди, до 5 мин в
+        // потолке; пустая очередь — опрос раз в 5 минут (спека §3, п.6).
         viewModelScope.launch {
-            kotlinx.coroutines.delay(3000) // Wait for DataStore to load
-            try {
-                val sent = feedbackSender.sendUnsent()
-                if (sent > 0) {
-                    Log.d("FeedbackViewModel", "Retry: sent $sent unsent feedbacks")
+            kotlinx.coroutines.delay(3000) // прогрев DataStore/Room
+            var backoff = 30_000L
+            while (true) {
+                val sent = try {
+                    feedbackSender.sendUnsent()
+                } catch (e: Exception) {
+                    Log.e("FeedbackViewModel", "Retry failed", e)
+                    0
                 }
-            } catch (e: Exception) {
-                Log.e("FeedbackViewModel", "Error retrying unsent feedbacks", e)
+                val pending = try {
+                    feedbackRepository.getUnsent().size
+                } catch (e: Exception) {
+                    0
+                }
+                if (pending == 0) {
+                    backoff = 30_000L
+                    kotlinx.coroutines.delay(300_000L)
+                } else {
+                    kotlinx.coroutines.delay(backoff)
+                    backoff = (backoff * 2).coerceAtMost(300_000L)
+                    Log.d("FeedbackViewModel", "Queue: $pending pending, sent $sent")
+                }
             }
         }
     }
@@ -92,24 +108,17 @@ class FeedbackViewModel @Inject constructor(
         if (currentRating > 0) {
             viewModelScope.launch {
                 try {
-                    val id = feedbackRepository.save(
+                    val stored = feedbackRepository.save(
                         Feedback(
                             rating = currentRating,
                             text = text,
                             startedAt = currentStartedAt,
                             createdAt = System.currentTimeMillis(),
-                            isComplete = false
+                            isComplete = false,
                         )
                     )
-                    // Try to send incomplete feedback too
-                    val savedFeedback = Feedback(
-                        id = id,
-                        rating = currentRating,
-                        text = text,
-                        startedAt = currentStartedAt,
-                        isComplete = false
-                    )
-                    feedbackSender.send(savedFeedback)
+                    // Фоном — чтобы сброс таймера не ждал сети
+                    feedbackSender.send(stored)
                 } catch (e: Exception) {
                     Log.e("FeedbackViewModel", "Error saving incomplete feedback", e)
                 }
