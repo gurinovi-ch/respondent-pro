@@ -12,7 +12,7 @@
 - APK: `app\build\outputs\apk\debug\app-debug.apk`
   - debug-сборка, подписана debug-ключом (release в проекте не подписывается)
   - версия: `1.1-test`
-  - SHA-256 сборки от 04.10.2026 (отправка отзывов в C web + фиксы): `DCAD5563844A0788235AA5F5A0DAE2330E7E8EABAE413F7EAA9A768775BFB36F`
+  - SHA-256 сборки от 04.10.2026 (отправка отзывов в C web + фиксы): `BCA6C23793E1F82B4B373009B0EAAEBA3B3D2F0DFBECF8375F871E0C58FEA179`
     (при пересборке меняется)
 
 ## Предпосылки
