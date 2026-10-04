@@ -54,15 +54,19 @@ class FeedbackViewModel @Inject constructor(
                 val pending = try {
                     feedbackRepository.getUnsent().size
                 } catch (e: Exception) {
-                    0
+                    Log.e("FeedbackViewModel", "Queue read failed", e)
+                    null // очередь неизвестна — не считаем пустой
                 }
                 if (pending == 0) {
+                    // Подтверждённо пустая очередь: опрос раз в 5 минут
                     backoff = 30_000L
                     kotlinx.coroutines.delay(300_000L)
                 } else {
+                    // Непустая очередь или размер неизвестен: повтор через текущий
+                    // backoff с ростом до потолка 5 минут
                     kotlinx.coroutines.delay(backoff)
                     backoff = (backoff * 2).coerceAtMost(300_000L)
-                    Log.d("FeedbackViewModel", "Queue: $pending pending, sent $sent")
+                    Log.d("FeedbackViewModel", "Queue: ${pending ?: "unknown"} pending, sent $sent")
                 }
             }
         }
