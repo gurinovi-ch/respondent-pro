@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
+import com.respondent.pro.cabinet.DeviceParams
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -115,6 +116,21 @@ class SettingsRepository @Inject constructor(
             prefs[Keys.SMTP_HOST] = settings.smtpHost
             prefs[Keys.SMTP_PORT] = settings.smtpPort
             prefs[Keys.SMTP_SSL] = settings.smtpSsl
+        }
+    }
+
+    /**
+     * Записывает только 6 экранных полей, пришедших с сервера.
+     * pin/telegram/sendMethod/email/language/send_incomplete не трогаются (спека §6).
+     */
+    suspend fun applyDeviceParams(p: DeviceParams) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.ORG_NAME] = p.orgName
+            prefs[Keys.GREETING] = p.greeting
+            prefs[Keys.CALL_TO_ACTION] = p.callToAction
+            prefs[Keys.COMMENT_HINT] = p.commentHint
+            prefs[Keys.THANK_YOU_TEXT] = p.thankYouText
+            prefs[Keys.RESET_TIMEOUT] = p.resetTimeout
         }
     }
 

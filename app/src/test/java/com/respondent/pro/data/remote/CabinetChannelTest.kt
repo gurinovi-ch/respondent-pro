@@ -2,6 +2,7 @@ package com.respondent.pro.data.remote
 
 import com.respondent.pro.cabinet.BindingStorage
 import com.respondent.pro.cabinet.CabinetApi
+import com.respondent.pro.cabinet.DeviceParamsResponse
 import com.respondent.pro.cabinet.FeedbackAck
 import com.respondent.pro.cabinet.FeedbackPayload
 import com.respondent.pro.cabinet.PairRequest
@@ -63,6 +64,7 @@ class CabinetChannelTest {
             return respond(body)
         }
         override suspend fun pair(body: PairRequest): PairResponse = throw NotImplementedError()
+        override suspend fun deviceParams(): DeviceParamsResponse = throw NotImplementedError()
     }
 
     private val bound = StoredBinding("rpro_key", "t1", "o1", "ООО", null)

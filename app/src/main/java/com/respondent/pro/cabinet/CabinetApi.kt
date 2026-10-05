@@ -1,6 +1,7 @@
 package com.respondent.pro.cabinet
 
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.POST
 
 interface CabinetApi {
@@ -11,6 +12,10 @@ interface CabinetApi {
     /** Отзыв в C web: оценка + комментарий одной записью. */
     @POST("feedbacks")
     suspend fun postFeedback(@Body body: FeedbackPayload): FeedbackAck
+
+    /** Режим и разрешённые параметры устройства (спека tablet-params-sync §4). */
+    @GET("tablets/settings")
+    suspend fun deviceParams(): DeviceParamsResponse
 }
 
 data class PairRequest(val pin: String)
@@ -38,4 +43,18 @@ data class FeedbackAck(
     val id: String,
     val createdAt: String,
     val startedAt: String,
+)
+
+data class DeviceParamsResponse(
+    val mode: String,
+    val settings: DeviceParams,
+)
+
+data class DeviceParams(
+    val orgName: String,
+    val greeting: String,
+    val callToAction: String,
+    val commentHint: String,
+    val thankYouText: String,
+    val resetTimeout: Int,
 )

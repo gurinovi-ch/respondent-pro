@@ -8,6 +8,9 @@ import com.respondent.pro.data.remote.FeedbackSender
 import com.respondent.pro.data.repository.FeedbackRepository
 import com.respondent.pro.data.repository.SettingsRepository
 import com.respondent.pro.data.repository.AppSettings
+import com.respondent.pro.cabinet.BindingStorage
+import com.respondent.pro.cabinet.CabinetApi
+import com.respondent.pro.cabinet.DeviceParamsSync
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,8 +23,12 @@ import javax.inject.Inject
 class FeedbackViewModel @Inject constructor(
     private val feedbackRepository: FeedbackRepository,
     private val settingsRepository: SettingsRepository,
-    private val feedbackSender: FeedbackSender
+    private val feedbackSender: FeedbackSender,
+    private val cabinetApi: CabinetApi,
+    private val bindingStorage: BindingStorage,
 ) : ViewModel() {
+
+    private val deviceParamsSync = DeviceParamsSync(cabinetApi, bindingStorage, settingsRepository::applyDeviceParams)
 
     private val _rating = MutableStateFlow(0)
     val rating: StateFlow<Int> = _rating
@@ -38,6 +45,10 @@ class FeedbackViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             settingsRepository.settings.collect { _settings.value = it }
+        }
+        // Параметры устройства с сервера: один fetch при старте, best-effort (спека §6)
+        viewModelScope.launch {
+            deviceParamsSync.fetchAndApply()
         }
         // Дренаж очереди: досылаем то, что не ушло (C web или Telegram/e-mail
         // — в зависимости от режима). 30 с при непустой очереди, до 5 мин в

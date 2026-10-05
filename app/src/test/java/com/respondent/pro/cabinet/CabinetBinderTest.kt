@@ -37,6 +37,9 @@ class CabinetBinderTest {
         override suspend fun postFeedback(body: FeedbackPayload): FeedbackAck {
             throw UnsupportedOperationException("not used in binder tests")
         }
+
+        override suspend fun deviceParams(): DeviceParamsResponse =
+            throw UnsupportedOperationException("not used in binder tests")
     }
 
     private val ok = PairResponse("rpro_k", "t1", "o1", "ООО Ромашка", "Точка")
