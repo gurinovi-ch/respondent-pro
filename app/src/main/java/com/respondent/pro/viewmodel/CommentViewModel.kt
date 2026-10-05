@@ -51,29 +51,28 @@ class CommentViewModel @Inject constructor(
             _isSending.value = true
             _sendError.value = null
             try {
-                val id = feedbackRepository.save(
+                val stored = feedbackRepository.save(
                     Feedback(
                         rating = rating,
                         text = _comment.value,
                         startedAt = startedAt,
-                        isComplete = true
+                        isComplete = true,
                     )
                 )
-                Log.d("CommentViewModel", "Feedback saved to DB, id=$id")
+                Log.d("CommentViewModel", "Feedback saved to DB, id=${stored.id}")
 
-                // Try to send to Telegram immediately
-                val savedFeedback = Feedback(
-                    id = id,
-                    rating = rating,
-                    text = _comment.value,
-                    startedAt = startedAt,
-                    isComplete = true
-                )
-                val sent = feedbackSender.send(savedFeedback)
-                if (!sent) {
-                    Log.w("CommentViewModel", "Feedback saved but NOT sent")
-                } else {
-                    Log.d("CommentViewModel", "Feedback saved AND sent ✓")
+                // Отправка фоном: «Спасибо» не ждёт сети (спека §3, п.6).
+                // В stored — тот же clientKey, что и в БД: ретрай не создаст дубль.
+                viewModelScope.launch {
+                    try {
+                        val sent = feedbackSender.send(stored)
+                        if (sent) Log.d("CommentViewModel", "Feedback ${stored.id} sent ✓")
+                        else Log.w("CommentViewModel", "Feedback ${stored.id} not sent yet (queued)")
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.e("CommentViewModel", "Background send failed", e)
+                    }
                 }
 
                 _sendSuccess.value = true

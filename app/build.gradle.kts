@@ -14,8 +14,8 @@ android {
         applicationId = "com.respondent.pro"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0-test"
+        versionCode = 2
+        versionName = "1.1-test"
     }
 
     buildTypes {
@@ -44,6 +44,14 @@ android {
             )
         }
     }
+    testOptions {
+        unitTests {
+            // Robolectric: манифест/ресурсы для юнит-тестов (смоук QR-кода)
+            isIncludeAndroidResources = true
+            // android.util.Log в plain-юнит-тестах: возвращать дефолты, не бросать
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {
@@ -51,6 +59,8 @@ dependencies {
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
+    // WiFi/Battery иконки для индикаторов киоска (Wifi, WifiOff)
+    implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
@@ -62,6 +72,7 @@ dependencies {
 
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
     ksp("androidx.room:room-compiler:2.6.1")
 
     implementation("androidx.datastore:datastore-preferences:1.1.1")
@@ -79,5 +90,12 @@ dependencies {
     implementation("com.sun.mail:android-mail:1.6.7")
     implementation("com.sun.mail:android-activation:1.6.7")
 
+    // QR-код для провижининга
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+
     testImplementation("junit:junit:4.13.2")
+    // MockWebServer для теста интерсептора X-API-Key (версия = okhttp)
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    // Смоук-тест encodeQr: нужен реальный android.graphics.Bitmap
+    testImplementation("org.robolectric:robolectric:4.14.1")
 }

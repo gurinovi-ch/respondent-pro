@@ -2,10 +2,15 @@ package com.respondent.pro.di
 
 import android.content.Context
 import androidx.room.Room
-import androidx.room.migration.Migration
-import androidx.sqlite.db.SupportSQLiteDatabase
+import com.respondent.pro.cabinet.ApiKeyInterceptor
+import com.respondent.pro.cabinet.BindingStorage
+import com.respondent.pro.cabinet.CabinetApi
+import com.respondent.pro.cabinet.EncryptedBindingStorage
+import com.respondent.pro.cabinet.KabinetConfig
 import com.respondent.pro.data.local.AppDatabase
 import com.respondent.pro.data.local.FeedbackDao
+import com.respondent.pro.data.local.MIGRATION_1_2
+import com.respondent.pro.data.local.MIGRATION_2_3
 import com.respondent.pro.data.remote.TelegramApi
 import dagger.Module
 import dagger.Provides
@@ -22,13 +27,6 @@ object AppModule {
 
     private const val TELEGRAM_BASE_URL = "https://api.telegram.org"
 
-    private val MIGRATION_1_2 = object : Migration(1, 2) {
-        override fun migrate(database: SupportSQLiteDatabase) {
-            database.execSQL("ALTER TABLE feedbacks ADD COLUMN startedAt INTEGER NOT NULL DEFAULT 0")
-            database.execSQL("ALTER TABLE feedbacks ADD COLUMN isComplete INTEGER NOT NULL DEFAULT 1")
-        }
-    }
-
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -36,7 +34,7 @@ object AppModule {
             context,
             AppDatabase::class.java,
             "respondent_pro.db"
-        ).addMigrations(MIGRATION_1_2).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
     }
 
     @Provides
@@ -55,5 +53,26 @@ object AppModule {
     @Singleton
     fun provideTelegramApi(retrofit: Retrofit): TelegramApi {
         return retrofit.create(TelegramApi::class.java)
+    }
+
+    /** API кабинета — отдельный Retrofit со своим baseUrl (не путать с Telegram). */
+    @Provides
+    @Singleton
+    fun provideCabinetApi(bindingStorage: BindingStorage): CabinetApi {
+        val client = okhttp3.OkHttpClient.Builder()
+            .addInterceptor(ApiKeyInterceptor(bindingStorage))
+            .build()
+        return Retrofit.Builder()
+            .baseUrl(KabinetConfig.BASE_URL)
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(CabinetApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideBindingStorage(@ApplicationContext context: Context): BindingStorage {
+        return EncryptedBindingStorage.create(context)
     }
 }

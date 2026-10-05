@@ -12,7 +12,11 @@ class FeedbackRepository @Inject constructor(
 ) {
     val allFeedbacks: Flow<List<Feedback>> = dao.getAll()
 
-    suspend fun save(feedback: Feedback): Long = dao.insert(feedback)
+    /** Сохраняет запись и возвращает её же с заполненным id (clientKey сохраняется). */
+    suspend fun save(feedback: Feedback): Feedback {
+        val id = dao.insert(feedback)
+        return feedback.copy(id = id)
+    }
 
     suspend fun getUnsent(): List<Feedback> = dao.getUnsent()
 

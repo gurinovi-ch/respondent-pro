@@ -1,8 +1,9 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Tablet 10" (portrait) -->
-    <dimen name="kb_max_height">300dp</dimen>
-    <dimen name="kb_row_height">75dp</dimen>
+    <!-- Tablet 10" (portrait); kb_max_height = minHeight РєРѕСЂРЅРµРІРѕРіРѕ layout -->
+    <dimen name="kb_max_height">270dp</dimen>
+    <!-- Р’С‹СЃРѕС‚Р° СЃС‚СЂРѕРєРё -5% (75 -> 71.25): РєР»Р°РІРёР°С‚СѓСЂР° С†РµР»РёРєРѕРј РїРѕРјРµС‰Р°РµС‚СЃСЏ РІРЅРёР·Сѓ -->
+    <dimen name="kb_row_height">69dp</dimen>
     <dimen name="kb_general_padding">4dp</dimen>
     <dimen name="kb_btn_text_size">26sp</dimen>
     <dimen name="kb_btn_btn_size">28dp</dimen>

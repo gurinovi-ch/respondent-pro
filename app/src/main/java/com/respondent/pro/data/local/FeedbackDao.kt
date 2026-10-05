@@ -9,8 +9,12 @@ interface FeedbackDao {
     @Query("SELECT * FROM feedbacks ORDER BY createdAt DESC")
     fun getAll(): Flow<List<Feedback>>
 
-    @Query("SELECT * FROM feedbacks WHERE sentToTelegram = 0")
+    /** Очередь: не доставлено ни в C msg, ни в C web. */
+    @Query("SELECT * FROM feedbacks WHERE sentToTelegram = 0 AND serverSyncedAt IS NULL ORDER BY createdAt ASC")
     suspend fun getUnsent(): List<Feedback>
+
+    @Query("UPDATE feedbacks SET serverSyncedAt = :at WHERE id = :id")
+    suspend fun markServerSynced(id: Long, at: Long)
 
     @Insert
     suspend fun insert(feedback: Feedback): Long
@@ -20,6 +24,10 @@ interface FeedbackDao {
 
     @Query("UPDATE feedbacks SET errorMessage = :error WHERE id = :id")
     suspend fun markError(id: Long, error: String)
+
+    /** Персистит сгенерированный clientKey в legacy-строку (однократно: только если ключа ещё нет). */
+    @Query("UPDATE feedbacks SET clientKey = :key WHERE id = :id AND clientKey IS NULL")
+    suspend fun assignClientKey(id: Long, key: String)
 
     @Query("DELETE FROM feedbacks WHERE id = :id")
     suspend fun delete(id: Long)

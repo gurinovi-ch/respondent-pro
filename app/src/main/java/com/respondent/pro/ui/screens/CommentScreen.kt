@@ -8,7 +8,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -17,6 +16,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.respondent.pro.data.repository.AppSettings
 import com.respondent.pro.ui.components.AutoResetTimer
+import com.respondent.pro.ui.components.CircleCloseButton
 import com.respondent.pro.ui.i18n.LocalAppStrings
 import com.respondent.pro.ui.theme.TextPrimary
 import com.respondent.pro.viewmodel.CommentViewModel
@@ -160,11 +160,12 @@ fun CommentScreen(
                     .wrapContentHeight()
             )
 
-            // Buttons — 40% ширины экрана, высота 56dp, отступы 28dp (50% высоты кнопки)
+            // Buttons — 40% ширины экрана, высота 56dp; отступ сверху уменьшен,
+            // чтобы блок не подпирал низ экрана
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 28.dp),
+                    .padding(top = 12.dp),
                 horizontalArrangement = Arrangement.Center
             ) {
                 if (comment.isEmpty()) {
@@ -206,18 +207,18 @@ fun CommentScreen(
                 timeoutSeconds = 60,
                 resetTrigger = timerKey,
                 onTimeout = { onAutoReset() },
-                modifier = Modifier.padding(top = 28.dp)
+                modifier = Modifier.padding(top = 12.dp)
             )
         }
 
-        // Close button (X) - top right
-        IconButton(
+        // Крестик отмены (возврат на главный) — как на главном экране:
+        // верх справа, отступ 1% высоты экрана
+        val edgeMargin = (LocalConfiguration.current.screenHeightDp * 0.01f).dp
+        CircleCloseButton(
             onClick = onClose,
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(8.dp)
-        ) {
-            Text("✕", fontSize = 24.sp, color = Color.Gray)
-        }
+                .padding(top = edgeMargin, end = edgeMargin)
+        )
     }
 }

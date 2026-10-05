@@ -1,0 +1,290 @@
+# Review package: e3b2a8e..2f4dba7
+
+## Commits
+2f4dba7 feat(kiosk): settings excursion with floating return button; probes P2/P5
+
+## Files changed
+ .../main/java/com/respondent/pro/MainActivity.kt   |   3 +
+ .../pro/kiosk/SettingsExcursionOverlay.kt          | 108 +++++++++++++++++++++
+ .../respondent/pro/ui/screens/SettingsScreen.kt    |  16 ++-
+ .../respondent/pro/viewmodel/SettingsViewModel.kt  |   7 +-
+ 4 files changed, 132 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/app/src/main/java/com/respondent/pro/MainActivity.kt b/app/src/main/java/com/respondent/pro/MainActivity.kt
+index c58c795..5376ee6 100644
+--- a/app/src/main/java/com/respondent/pro/MainActivity.kt
++++ b/app/src/main/java/com/respondent/pro/MainActivity.kt
+@@ -7,20 +7,21 @@ import androidx.activity.compose.setContent
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Surface
+ import androidx.compose.runtime.CompositionLocalProvider
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.getValue
+ import androidx.compose.ui.Modifier
+ import com.respondent.pro.data.repository.AppSettings
+ import com.respondent.pro.data.repository.SettingsRepository
+ import com.respondent.pro.kiosk.KioskManager
++import com.respondent.pro.kiosk.SettingsExcursionOverlay
+ import com.respondent.pro.kiosk.WatchdogScheduler
+ import com.respondent.pro.ui.i18n.LocalAppStrings
+ import com.respondent.pro.ui.i18n.appStringsFor
+ import com.respondent.pro.ui.navigation.NavGraph
+ import com.respondent.pro.ui.theme.RespondentProTheme
+ import dagger.hilt.android.AndroidEntryPoint
+ import javax.inject.Inject
+ 
+ @AndroidEntryPoint
+ class MainActivity : ComponentActivity() {
+@@ -51,18 +52,20 @@ class MainActivity : ComponentActivity() {
+                     ) {
+                         NavGraph()
+                     }
+                 }
+             }
+         }
+     }
+ 
+     override fun onResume() {
+         super.onResume()
++        // ╨Ю╨▓╨╡╤А╨╗╨╡╨╣ ╤Г╨▒╨╕╤А╨░╨╡╨╝ ╨┐╨╡╤А╨▓╤Л╨╝ тАФ ╨╕╨╜╨░╤З╨╡ ╨╛╨╜ ╨╛╤Б╤В╨░╨╜╨╡╤В╤Б╤П ╨┐╨╛╨▓╨╡╤А╤Е ╨╜╨░╤И╨╡╨│╨╛ ╤Н╨║╤А╨░╨╜╨░
++        SettingsExcursionOverlay.hide(this)
+         kioskManager.onActivityResumed(this)
+     }
+ 
+     override fun onPause() {
+         kioskManager.onActivityPaused()
+         super.onPause()
+     }
+ }
+diff --git a/app/src/main/java/com/respondent/pro/kiosk/SettingsExcursionOverlay.kt b/app/src/main/java/com/respondent/pro/kiosk/SettingsExcursionOverlay.kt
+new file mode 100644
+index 0000000..ab9f75f
+--- /dev/null
++++ b/app/src/main/java/com/respondent/pro/kiosk/SettingsExcursionOverlay.kt
+@@ -0,0 +1,108 @@
++package com.respondent.pro.kiosk
++
++import android.content.Context
++import android.content.Intent
++import android.graphics.Color
++import android.graphics.PixelFormat
++import android.net.Uri
++import android.os.Build
++import android.provider.Settings
++import android.util.Log
++import android.view.Gravity
++import android.view.View
++import android.view.WindowManager
++import android.widget.TextView
++import com.respondent.pro.MainActivity
++
++/**
++ * ╨Я╨╗╨░╨▓╨░╤О╤Й╨░╤П ╨║╨╜╨╛╨┐╨║╨░ ┬лтЧА ╨Т RESPONDENT.PRO┬╗ ╨┐╨╛╨▓╨╡╤А╤Е ╤Б╨╕╤Б╤В╨╡╨╝╨╜╤Л╤Е ╨╜╨░╤Б╤В╤А╨╛╨╡╨║ (spec ┬з6).
++ * ╨Я╨╛╨║╨░╨╖╤Л╨▓╨░╨╡╤В╤Б╤П ╤В╨╛╨╗╤М╨║╨╛ ╨┐╤А╨╕ ╨╜╨░╨╗╨╕╤З╨╕╨╕ ╤А╨░╨╖╤А╨╡╤И╨╡╨╜╨╕╤П SYSTEM_ALERT_WINDOW.
++ */
++object SettingsExcursionOverlay {
++
++    private const val TAG = "ExcursionOverlay"
++    private const val OVERLAY_TEXT = "тЧА ╨Т RESPONDENT.PRO"
++
++    private var currentView: View? = null
++
++    fun canDraw(context: Context): Boolean = Settings.canDrawOverlays(context)
++
++    /** ╨Ю╤В╨║╤А╤Л╨▓╨░╨╡╤В ╤Б╨╕╤Б╤В╨╡╨╝╨╜╤Л╨╣ ╤Н╨║╤А╨░╨╜ ╨▓╤Л╨┤╨░╤З╨╕ ╤А╨░╨╖╤А╨╡╤И╨╡╨╜╨╕╤П ┬л╨Я╨╛╨▓╨╡╤А╤Е ╨┤╤А╤Г╨│╨╕╤Е ╨╛╨║╨╛╨╜┬╗. */
++    fun openPermissionScreen(context: Context) {
++        try {
++            val intent = Intent(
++                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
++                Uri.parse("package:${context.packageName}")
++            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
++            context.startActivity(intent)
++        } catch (e: Exception) {
++            Log.e(TAG, "openPermissionScreen failed", e)
++        }
++    }
++
++    fun show(context: Context) {
++        if (currentView != null) return
++        if (!canDraw(context)) {
++            Log.i(TAG, "Overlay permission not granted тАФ button not shown")
++            return
++        }
++        try {
++            val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
++            val density = context.resources.displayMetrics.density
++            val params = WindowManager.LayoutParams(
++                WindowManager.LayoutParams.WRAP_CONTENT,
++                WindowManager.LayoutParams.WRAP_CONTENT,
++                if (Build.VERSION.SDK_INT >= 26) {
++                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
++                } else {
++                    @Suppress("DEPRECATION")
++                    WindowManager.LayoutParams.TYPE_SYSTEM_ALERT
++                },
++                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
++                PixelFormat.TRANSLUCENT
++            ).apply {
++                gravity = Gravity.BOTTOM or Gravity.END
++                x = (16 * density).toInt()
++                y = (96 * density).toInt() // ╨▓╤Л╤И╨╡ ╤Б╨╕╤Б╤В╨╡╨╝╨╜╨╛╨╣ ╨┐╨░╨╜╨╡╨╗╨╕ ╨╜╨░╨▓╨╕╨│╨░╤Ж╨╕╨╕
++            }
++            val view = TextView(context).apply {
++                text = OVERLAY_TEXT
++                setBackgroundColor(0xE6000000.toInt())
++                setTextColor(Color.WHITE)
++                setPadding(
++                    (14 * density).toInt(), (10 * density).toInt(),
++                    (14 * density).toInt(), (10 * density).toInt()
++                )
++                textSize = 15f
++                setOnClickListener {
++                    try {
++                        val back = Intent(context, MainActivity::class.java).apply {
++                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
++                        }
++                        context.startActivity(back)
++                    } catch (e: Exception) {
++                        Log.e(TAG, "return to app failed", e)
++                    }
++                    hide(context)
++                }
++            }
++            wm.addView(view, params)
++            currentView = view
++            Log.i(TAG, "Overlay shown")
++        } catch (e: Exception) {
++            Log.e(TAG, "show failed", e)
++        }
++    }
++
++    fun hide(context: Context) {
++        val view = currentView ?: return
++        try {
++            val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
++            wm.removeView(view)
++        } catch (e: Exception) {
++            Log.e(TAG, "hide failed", e)
++        }
++        currentView = null
++        Log.i(TAG, "Overlay hidden")
++    }
++}
+diff --git a/app/src/main/java/com/respondent/pro/ui/screens/SettingsScreen.kt b/app/src/main/java/com/respondent/pro/ui/screens/SettingsScreen.kt
+index f186f33..2af07bc 100644
+--- a/app/src/main/java/com/respondent/pro/ui/screens/SettingsScreen.kt
++++ b/app/src/main/java/com/respondent/pro/ui/screens/SettingsScreen.kt
+@@ -13,33 +13,36 @@ import androidx.compose.runtime.*
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.LocalWindowInfo
+ import androidx.compose.ui.text.input.KeyboardType
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.foundation.layout.WindowInsets
+ import androidx.compose.foundation.layout.imePadding
+ import androidx.compose.foundation.layout.windowInsetsPadding
+ import com.respondent.pro.data.repository.AppSettings
++import com.respondent.pro.kiosk.KioskManager
++import com.respondent.pro.kiosk.SettingsExcursionOverlay
+ import com.respondent.pro.ui.i18n.LocalAppStrings
+ import com.respondent.pro.viewmodel.ChatIdResult
+ import com.respondent.pro.viewmodel.SettingsViewModel
+ 
+ @OptIn(ExperimentalMaterial3Api::class)
+ @Composable
+ fun SettingsScreen(
+     viewModel: SettingsViewModel,
+     onStart: () -> Unit
+ ) {
+     val settings by viewModel.settings.collectAsState()
+     var localSettings by remember(settings.copy(language = "")) { mutableStateOf(settings) }
+     val context = LocalContext.current
++    val kioskManager = viewModel.kiosk
+     val strings = LocalAppStrings.current
+     var langExpanded by remember { mutableStateOf(false) }
+     var sendMethodExpanded by remember { mutableStateOf(false) }
+     var emailPresetExpanded by remember { mutableStateOf(false) }
+ 
+     val chatIdResult by viewModel.chatIdResult.collectAsState()
+     val isDetectingChatId by viewModel.isDetectingChatId.collectAsState()
+ 
+     var instructionsExpanded by remember { mutableStateOf(false) }
+ 
+@@ -198,21 +201,32 @@ fun SettingsScreen(
+                 Text(strings.sendIncompleteLabel)
+                 Switch(
+                     checked = localSettings.sendIncomplete,
+                     onCheckedChange = { localSettings = localSettings.copy(sendIncomplete = it) }
+                 )
+             }
+ 
+             // 10. ╨Э╨░╤Б╤В╤А╨╛╨╣╨║╨╕ Android
+             Button(
+                 onClick = {
+-                    context.startActivity(Intent(Settings.ACTION_SETTINGS))
++                    val activity = context as? android.app.Activity
++                    if (activity != null) {
++                        // ╨д╨╗╨░╨│ excursion ╨┐╨╛╨┤╨╜╨╕╨╝╨░╨╡╨╝ ╨Ф╨Ю ╤Г╤Е╨╛╨┤╨░ ╨╕╨╖ foreground (╨║╨╛╨╜╤В╤А╨░╨║╤В M3)
++                        kioskManager.beginExcursion(activity)
++                    }
++                    if (SettingsExcursionOverlay.canDraw(context)) {
++                        context.startActivity(Intent(Settings.ACTION_SETTINGS))
++                        SettingsExcursionOverlay.show(context)
++                    } else {
++                        // ╨а╨░╨╖╤А╨╡╤И╨╡╨╜╨╕╤П ╨╜╨╡╤В тАФ ╨╛╨┤╨╕╨╜ ╤А╨░╨╖ ╨┐╤А╨╛╤Б╨╕╨╝ ╨╡╨│╨╛ ╨▓╤Л╨┤╨░╤В╤М (spec ┬з6)
++                        SettingsExcursionOverlay.openPermissionScreen(context)
++                    }
+                 },
+                 modifier = Modifier.fillMaxWidth(),
+                 colors = ButtonDefaults.outlinedButtonColors()
+             ) {
+                 Text(strings.androidSettingsLabel)
+             }
+ 
+             Spacer(modifier = Modifier.height(8.dp))
+ 
+             // 11. ╨б╨┐╨╛╤Б╨╛╨▒ ╨╛╤В╨┐╤А╨░╨▓╨║╨╕ тАФ ╨▓╤Л╨┤╨╡╨╗╨╡╨╜╨╜╤Л╨╣ ╨▒╨╗╨╛╨║ ╨▓╨╜╨╕╨╖╤Г
+diff --git a/app/src/main/java/com/respondent/pro/viewmodel/SettingsViewModel.kt b/app/src/main/java/com/respondent/pro/viewmodel/SettingsViewModel.kt
+index d4e3fa6..d2056d2 100644
+--- a/app/src/main/java/com/respondent/pro/viewmodel/SettingsViewModel.kt
++++ b/app/src/main/java/com/respondent/pro/viewmodel/SettingsViewModel.kt
+@@ -1,30 +1,35 @@
+ package com.respondent.pro.viewmodel
+ 
+ import android.util.Log
+ import androidx.lifecycle.ViewModel
+ import androidx.lifecycle.viewModelScope
+ import com.respondent.pro.data.remote.TelegramApi
+ import com.respondent.pro.data.repository.AppSettings
+ import com.respondent.pro.data.repository.SettingsRepository
++import com.respondent.pro.kiosk.KioskManager
+ import dagger.hilt.android.lifecycle.HiltViewModel
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.StateFlow
+ import kotlinx.coroutines.launch
+ import javax.inject.Inject
+ 
+ @HiltViewModel
+ class SettingsViewModel @Inject constructor(
+     private val settingsRepository: SettingsRepository,
+-    private val telegramApi: TelegramApi
++    private val telegramApi: TelegramApi,
++    private val kioskManager: KioskManager
+ ) : ViewModel() {
+ 
++    /** KioskManager тАФ ╨┤╨╗╤П excursion-╨▓╤Л╤Е╨╛╨┤╨░ ╨▓ ╤Б╨╕╤Б╤В╨╡╨╝╨╜╤Л╨╡ ╨╜╨░╤Б╤В╤А╨╛╨╣╨║╨╕. */
++    val kiosk: KioskManager get() = kioskManager
++
+     private val _settings = MutableStateFlow(AppSettings())
+     val settings: StateFlow<AppSettings> = _settings
+ 
+     /** ╨а╨╡╨╖╤Г╨╗╤М╤В╨░╤В ╨░╨▓╤В╨╛╨╛╨┐╤А╨╡╨┤╨╡╨╗╨╡╨╜╨╕╤П Chat ID */
+     private val _chatIdResult = MutableStateFlow<ChatIdResult?>(null)
+     val chatIdResult: StateFlow<ChatIdResult?> = _chatIdResult
+ 
+     /** ╨Ш╨┤╤С╤В ╨╗╨╕ ╨╖╨░╨┐╤А╨╛╤Б Chat ID */
+     private val _isDetectingChatId = MutableStateFlow(false)
+     val isDetectingChatId: StateFlow<Boolean> = _isDetectingChatId

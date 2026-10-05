@@ -1,0 +1,1464 @@
+﻿diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index 293cd1b..472eae7 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -44,6 +44,12 @@ android {
+             )
+         }
+     }
++    testOptions {
++        unitTests {
++            // Robolectric: ╨╝╨░╨╜╨╕╤Д╨╡╤Б╤В/╤А╨╡╤Б╤Г╤А╤Б╤Л ╨┤╨╗╤П ╤О╨╜╨╕╤В-╤В╨╡╤Б╤В╨╛╨▓ (╤Б╨╝╨╛╤Г╨║ QR-╨║╨╛╨┤╨░)
++            isIncludeAndroidResources = true
++        }
++    }
+ }
+ 
+ dependencies {
+@@ -79,5 +85,10 @@ dependencies {
+     implementation("com.sun.mail:android-mail:1.6.7")
+     implementation("com.sun.mail:android-activation:1.6.7")
+ 
++    // QR-╨║╨╛╨┤ ╨┤╨╗╤П ╨┐╤А╨╛╨▓╨╕╨╢╨╕╨╜╨╕╨╜╨│╨░
++    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
++
+     testImplementation("junit:junit:4.13.2")
++    // ╨б╨╝╨╛╤Г╨║-╤В╨╡╤Б╤В encodeQr: ╨╜╤Г╨╢╨╡╨╜ ╤А╨╡╨░╨╗╤М╨╜╤Л╨╣ android.graphics.Bitmap
++    testImplementation("org.robolectric:robolectric:4.14.1")
+ }
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index bf0f823..78bd55d 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -1,7 +1,19 @@
+ <?xml version="1.0" encoding="utf-8"?>
+-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    xmlns:tools="http://schemas.android.com/tools">
+     <uses-permission android:name="android.permission.INTERNET" />
+     <uses-permission android:name="android.permission.VIBRATE" />
++    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
++    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
++    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
++
++    <!-- zxing-android-embedded (encoding-only use) injects a camera permission/feature
++         surface the app never uses; strip it from the merged manifest. -->
++    <uses-permission android:name="android.permission.CAMERA" tools:node="remove" />
++    <uses-feature android:name="android.hardware.camera" tools:node="remove" />
++    <uses-feature android:name="android.hardware.camera.front" tools:node="remove" />
++    <uses-feature android:name="android.hardware.camera.autofocus" tools:node="remove" />
++    <uses-feature android:name="android.hardware.camera.flash" tools:node="remove" />
+ 
+     <application
+         android:name=".RespondentApp"
+@@ -9,15 +21,53 @@
+         android:label="RESPONDENT.PRO"
+         android:supportsRtl="true"
+         android:theme="@style/Theme.RespondentPro">
++        <receiver
++            android:name=".kiosk.KioskAdminReceiver"
++            android:exported="true"
++            android:permission="android.permission.BIND_DEVICE_ADMIN">
++            <meta-data
++                android:name="android.app.device_admin"
++                android:resource="@xml/device_admin" />
++            <intent-filter>
++                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
++            </intent-filter>
++        </receiver>
++        <receiver
++            android:name=".kiosk.BootReceiver"
++            android:exported="true">
++            <intent-filter>
++                <action android:name="android.intent.action.BOOT_COMPLETED" />
++            </intent-filter>
++        </receiver>
++        <receiver
++            android:name=".kiosk.RestartReceiver"
++            android:exported="false">
++            <intent-filter>
++                <action android:name="com.respondent.pro.kiosk.ACTION_WATCHDOG" />
++                <action android:name="com.respondent.pro.kiosk.ACTION_RESTART" />
++            </intent-filter>
++        </receiver>
++        <provider
++            android:name="androidx.core.content.FileProvider"
++            android:authorities="${applicationId}.fileprovider"
++            android:exported="false"
++            android:grantUriPermissions="true">
++            <meta-data
++                android:name="android.support.FILE_PROVIDER_PATHS"
++                android:resource="@xml/file_paths" />
++        </provider>
+         <activity
+             android:name=".MainActivity"
+             android:exported="true"
++            android:launchMode="singleTask"
+             android:screenOrientation="unspecified"
+             android:windowSoftInputMode="stateHidden|adjustResize"
+             android:configChanges="orientation|screenSize|keyboardHidden">
+             <intent-filter>
+                 <action android:name="android.intent.action.MAIN" />
+                 <category android:name="android.intent.category.LAUNCHER" />
++                <category android:name="android.intent.category.HOME" />
++                <category android:name="android.intent.category.DEFAULT" />
+             </intent-filter>
+         </activity>
+     </application>
+diff --git a/app/src/main/java/com/respondent/pro/MainActivity.kt b/app/src/main/java/com/respondent/pro/MainActivity.kt
+index 162b7ee..5376ee6 100644
+--- a/app/src/main/java/com/respondent/pro/MainActivity.kt
++++ b/app/src/main/java/com/respondent/pro/MainActivity.kt
+@@ -1,6 +1,7 @@
+ package com.respondent.pro
+ 
+ import android.os.Bundle
++import android.view.WindowManager
+ import androidx.activity.ComponentActivity
+ import androidx.activity.compose.setContent
+ import androidx.compose.foundation.layout.fillMaxSize
+@@ -12,6 +13,9 @@ import androidx.compose.runtime.getValue
+ import androidx.compose.ui.Modifier
+ import com.respondent.pro.data.repository.AppSettings
+ import com.respondent.pro.data.repository.SettingsRepository
++import com.respondent.pro.kiosk.KioskManager
++import com.respondent.pro.kiosk.SettingsExcursionOverlay
++import com.respondent.pro.kiosk.WatchdogScheduler
+ import com.respondent.pro.ui.i18n.LocalAppStrings
+ import com.respondent.pro.ui.i18n.appStringsFor
+ import com.respondent.pro.ui.navigation.NavGraph
+@@ -24,8 +28,17 @@ class MainActivity : ComponentActivity() {
+     @Inject
+     lateinit var settingsRepository: SettingsRepository
+ 
++    @Inject
++    lateinit var kioskManager: KioskManager
++
+     override fun onCreate(savedInstanceState: Bundle?) {
+         super.onCreate(savedInstanceState)
++        // ╨н╨║╤А╨░╨╜ ╨╜╨╕╨║╨╛╨│╨┤╨░ ╨╜╨╡ ╨│╨░╤Б╨╜╨╡╤В (╨║╨╕╨╛╤Б╨║, spec ┬з5)
++        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
++        // ╨Я╨╛╨╗╨╕╤В╨╕╨║╨╕ DO тАФ ╨╕╨┤╨╡╨╝╨┐╨╛╤В╨╡╨╜╤В╨╜╨╛, ╨▒╨╡╨╖ DO ╤В╨╕╤Е╨╛ ╨┐╤А╨╛╨┐╤Г╤Б╨║╨░╨╡╤В╤Б╤П
++        kioskManager.applyPolicies()
++        // ╨Я╨╡╤А╨╡╨┐╨╗╨░╨╜╨╕╤А╤Г╨╡╨╝ ╤Ж╨╡╨┐╨╛╤З╨║╤Г ╤Б╤В╤А╨░╨╢╨░ ╨╜╨░ ╨║╨░╨╢╨┤╤Л╨╣ ╨╖╨░╨┐╤Г╤Б╨║ (spec ┬з3)
++        WatchdogScheduler.scheduleNext(this)
+         setContent {
+             val appSettings by settingsRepository.settings.collectAsState(initial = AppSettings())
+             RespondentProTheme {
+@@ -43,4 +56,16 @@ class MainActivity : ComponentActivity() {
+             }
+         }
+     }
++
++    override fun onResume() {
++        super.onResume()
++        // ╨Ю╨▓╨╡╤А╨╗╨╡╨╣ ╤Г╨▒╨╕╤А╨░╨╡╨╝ ╨┐╨╡╤А╨▓╤Л╨╝ тАФ ╨╕╨╜╨░╤З╨╡ ╨╛╨╜ ╨╛╤Б╤В╨░╨╜╨╡╤В╤Б╤П ╨┐╨╛╨▓╨╡╤А╤Е ╨╜╨░╤И╨╡╨│╨╛ ╤Н╨║╤А╨░╨╜╨░
++        SettingsExcursionOverlay.hide(this)
++        kioskManager.onActivityResumed(this)
++    }
++
++    override fun onPause() {
++        kioskManager.onActivityPaused()
++        super.onPause()
++    }
+ }
+diff --git a/app/src/main/java/com/respondent/pro/RespondentApp.kt b/app/src/main/java/com/respondent/pro/RespondentApp.kt
+index acb721e..8fb3c66 100644
+--- a/app/src/main/java/com/respondent/pro/RespondentApp.kt
++++ b/app/src/main/java/com/respondent/pro/RespondentApp.kt
+@@ -3,6 +3,7 @@ package com.respondent.pro
+ import android.app.Application
+ import android.content.Context
+ import android.util.Log
++import com.respondent.pro.kiosk.WatchdogScheduler
+ import dagger.hilt.android.HiltAndroidApp
+ import java.io.File
+ import java.io.PrintWriter
+@@ -54,6 +55,11 @@ class RespondentApp : Application() {
+                     } catch (_: Exception) {}
+                 } catch (_: Exception) {}
+ 
++                // ╨Я╨╗╨░╨╜╨╕╤А╤Г╨╡╨╝ ╨┐╨╡╤А╨╡╨╖╨░╨┐╤Г╤Б╨║ ╨║╨╕╨╛╤Б╨║╨░ ╨┐╨╛╤Б╨╗╨╡ ╨║╤А╤Н╤И╨░ (spec ┬з3)
++                try {
++                    WatchdogScheduler.scheduleRestart(context)
++                } catch (_: Exception) {}
++
+                 // Pass to default handler (shows system crash dialog)
+                 defaultHandler?.uncaughtException(thread, throwable)
+             }
+diff --git a/app/src/main/java/com/respondent/pro/kiosk/BootReceiver.kt b/app/src/main/java/com/respondent/pro/kiosk/BootReceiver.kt
+new file mode 100644
+index 0000000..1141fa3
+--- /dev/null
++++ b/app/src/main/java/com/respondent/pro/kiosk/BootReceiver.kt
+@@ -0,0 +1,28 @@
++package com.respondent.pro.kiosk
++
++import android.content.BroadcastReceiver
++import android.content.Context
++import android.content.Intent
++import android.util.Log
++import com.respondent.pro.MainActivity
++
++/** ╨Р╨▓╤В╨╛╨╖╨░╨┐╤Г╤Б╨║ ╨┐╨╛╤Б╨╗╨╡ ╨╖╨░╨│╤А╤Г╨╖╨║╨╕ ╤Б╨╕╤Б╤В╨╡╨╝╤Л (spec ┬з3). ╨С╨Ф/╨╜╨░╤Б╤В╤А╨╛╨╣╨║╨╕ ╨╜╨╡ ╤В╤А╨╛╨│╨░╨╡╤В. */
++class BootReceiver : BroadcastReceiver() {
++
++    companion object {
++        private const val TAG = "BootReceiver"
++    }
++
++    override fun onReceive(context: Context, intent: Intent) {
++        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
++        Log.i(TAG, "BOOT_COMPLETED тАФ launching MainActivity")
++        try {
++            val launch = Intent(context, MainActivity::class.java).apply {
++                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
++            }
++            context.startActivity(launch)
++        } catch (e: Exception) {
++            Log.e(TAG, "Failed to launch MainActivity", e)
++        }
++    }
++}
+diff --git a/app/src/main/java/com/respondent/pro/kiosk/KioskAdminReceiver.kt b/app/src/main/java/com/respondent/pro/kiosk/KioskAdminReceiver.kt
+new file mode 100644
+index 0000000..0830113
+--- /dev/null
++++ b/app/src/main/java/com/respondent/pro/kiosk/KioskAdminReceiver.kt
+@@ -0,0 +1,9 @@
++package com.respondent.pro.kiosk
++
++import android.app.admin.DeviceAdminReceiver
++
++/**
++ * ╨ж╨╡╨╗╤М ╨▓╤Л╨┤╨░╤З╨╕ Device Owner. ╨Ы╨╛╨│╨╕╨║╨╕ ╨╜╨╡ ╤Б╨╛╨┤╨╡╤А╨╢╨╕╤В тАФ ╨╛╨▒╤К╤П╨▓╨╗╨╡╨╜ ╨▓ ╨╝╨░╨╜╨╕╤Д╨╡╤Б╤В╨╡
++ * ╤Б device_admin.xml, ╨╜╨░ ╤Н╤В╨╛╤В ╨║╨╛╨╝╨┐╨╛╨╜╨╡╨╜╤В ╤Б╤Б╤Л╨╗╨░╨╡╤В╤Б╤П dpm set-device-owner.
++ */
++class KioskAdminReceiver : DeviceAdminReceiver()
+diff --git a/app/src/main/java/com/respondent/pro/kiosk/KioskConfig.kt b/app/src/main/java/com/respondent/pro/kiosk/KioskConfig.kt
+new file mode 100644
+index 0000000..d3f2a62
+--- /dev/null
++++ b/app/src/main/java/com/respondent/pro/kiosk/KioskConfig.kt
+@@ -0,0 +1,22 @@
++package com.respondent.pro.kiosk
++
++/**
++ * ╨Ъ╨╛╨╜╤Б╤В╨░╨╜╤В╤Л ╨╕╨╜╤Д╨╛╨║╨╕╨╛╤Б╨║╨░: ╨╛╤В╨║╤Г╨┤╨░ ╨┐╨╗╨░╨╜╤И╨╡╤В ╤Б╨║╨░╤З╨╕╨▓╨░╨╡╤В APK (QR-╨┐╤А╨╛╨▓╨╕╨╢╨╕╨╜╨╕╨╜╨│,
++ * ╨╕╨╜╤Б╤В╤А╤Г╨║╤Ж╨╕╤П ADB) ╨╕ ╨║╨╛╨╝╨░╨╜╨┤╤Л ╨╜╨░╤Б╤В╤А╨╛╨╣╨║╨╕. URL тАФ GitHub Releases (spec ┬з13.5).
++ */
++object KioskConfig {
++
++    /** ╨Ю╤А╨│╨░╨╜╨╕╨╖╨░╤Ж╨╕╤П/╤А╨╡╨┐╨╛╨╖╨╕╤В╨╛╤А╨╕╨╣: ╨┐╤Г╨▒╨╗╨╕╤З╨╜╤Л╨╣ ╤А╨╡╨┐╨╛╨╖╨╕╤В╨╛╤А╨╕╨╣, ╤Б╨╛╨╖╨┤╨░╨╜ ╨▓ Task 7. */
++    const val OWNER_REPO = "gurinovi-ch/respondent-pro"
++
++    const val APK_DOWNLOAD_URL =
++        "https://github.com/gurinovi-ch/respondent-pro/releases/download/v1.0-test/RESPONDENT.PRO.apk"
++
++    /** ╨Ъ╨╛╨╝╨░╨╜╨┤╤Л ╨╕╨╜╤Б╤В╤А╤Г╨║╤Ж╨╕╨╕ ADB тАФ ╨┐╨╛ ╨╛╨┤╨╜╨╛╨╣, ╨╜╨░╨╢╨░╤В╨╕╨╡ ╨║╨╛╨┐╨╕╤А╤Г╨╡╤В (Task 8). */
++    fun adbCommands(): List<String> = listOf(
++        "adb install -r RESPONDENT.PRO.apk",
++        "adb shell dpm set-device-owner com.respondent.pro/.kiosk.KioskAdminReceiver",
++        "adb shell cmd package set-home-activity com.respondent.pro/.MainActivity",
++        "adb shell appops set com.respondent.pro SYSTEM_ALERT_WINDOW allow"
++    )
++}
+diff --git a/app/src/main/java/com/respondent/pro/kiosk/KioskManager.kt b/app/src/main/java/com/respondent/pro/kiosk/KioskManager.kt
+new file mode 100644
+index 0000000..7c3af96
+--- /dev/null
++++ b/app/src/main/java/com/respondent/pro/kiosk/KioskManager.kt
+@@ -0,0 +1,124 @@
++package com.respondent.pro.kiosk
++
++import android.app.Activity
++import android.app.admin.DevicePolicyManager
++import android.content.ComponentName
++import android.content.Context
++import android.os.Build
++import android.os.UserManager
++import android.util.Log
++import dagger.hilt.android.qualifiers.ApplicationContext
++import javax.inject.Inject
++import javax.inject.Singleton
++
++data class KioskStatus(val deviceOwner: Boolean, val lockTaskPermitted: Boolean)
++
++/**
++ * ╨Х╨┤╨╕╨╜╨░╤П ╤В╨╛╤З╨║╨░ ╨║╨╕╨╛╤Б╨║-╤А╨╡╨╢╨╕╨╝╨░: ╤Б╤В╨░╤В╤Г╤Б DO, ╨┐╤А╨╕╨╝╨╡╨╜╨╡╨╜╨╕╨╡ ╨┐╨╛╨╗╨╕╤В╨╕╨║,
++ * ╨▓╤Е╨╛╨┤/╨▓╤Л╤Е╨╛╨┤ ╨╕╨╖ Lock Task, ╤Д╨╗╨░╨│╨╕ ╨┤╨╗╤П watchdog (spec ┬з5тАУ7).
++ */
++@Singleton
++class KioskManager @Inject constructor(
++    @ApplicationContext private val context: Context
++) {
++    companion object {
++        private const val TAG = "KioskManager"
++    }
++
++    val adminComponent: ComponentName = ComponentName(context, KioskAdminReceiver::class.java)
++
++    @Volatile
++    var isForeground: Boolean = false
++        private set
++
++    @Volatile
++    var excursionActive: Boolean = false
++        private set
++
++    private val dpm: DevicePolicyManager?
++        get() = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
++
++    fun isDeviceOwner(): Boolean = try {
++        dpm?.isDeviceOwnerApp(context.packageName) == true
++    } catch (e: Exception) {
++        Log.e(TAG, "isDeviceOwnerApp failed", e)
++        false
++    }
++
++    fun status(): KioskStatus {
++        val owner = isDeviceOwner()
++        val lockPermitted = owner && try {
++            dpm?.isLockTaskPermitted(context.packageName) == true
++        } catch (e: Exception) {
++            Log.e(TAG, "isLockTaskPermitted failed", e)
++            false
++        }
++        return KioskStatus(deviceOwner = owner, lockTaskPermitted = lockPermitted)
++    }
++
++    /** ╨Ш╨┤╨╡╨╝╨┐╨╛╤В╨╡╨╜╤В╨╜╨╛. ╨Т╤Л╨╖╤Л╨▓╨░╨╡╤В╤Б╤П ╨╕╨╖ MainActivity.onCreate. ╨С╨╡╨╖ DO тАФ ╤В╨╕╤Е╨╛ ╨╜╨╕╤З╨╡╨│╨╛ ╨╜╨╡ ╨┤╨╡╨╗╨░╨╡╤В. */
++    fun applyPolicies() {
++        val dpm = dpm ?: return
++        val actions = KioskPolicy.actions(isDeviceOwner(), context.packageName)
++        if (actions.isEmpty()) {
++            Log.i(TAG, "Device Owner not granted тАФ policies skipped")
++            return
++        }
++        try {
++            for (action in actions) {
++                when (action) {
++                    PolicyAction.HideStatusBar -> dpm.setStatusBarDisabled(adminComponent, true)
++                    PolicyAction.DisableKeyguard -> dpm.setKeyguardDisabled(adminComponent, true)
++                    PolicyAction.BlockFactoryReset ->
++                        dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_FACTORY_RESET)
++                    PolicyAction.BlockSafeBoot ->
++                        dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_SAFE_BOOT)
++                    PolicyAction.MaxScreenTime ->
++                        dpm.setMaximumTimeToLock(adminComponent, KioskPolicy.MAX_LOCK_TIME_MS)
++                    is PolicyAction.ProtectApp ->
++                        dpm.setUninstallBlocked(adminComponent, action.pkg, true)
++                    is PolicyAction.WhitelistLockTask -> {
++                        dpm.setLockTaskPackages(adminComponent, arrayOf(action.pkg))
++                        if (Build.VERSION.SDK_INT >= 28) {
++                            dpm.setLockTaskFeatures(adminComponent, 0)
++                        }
++                    }
++                }
++            }
++            Log.i(TAG, "Policies applied: ${actions.size}")
++        } catch (e: SecurityException) {
++            Log.e(TAG, "applyPolicies failed", e)
++        }
++    }
++
++    fun onActivityResumed(activity: Activity) {
++        isForeground = true
++        excursionActive = false
++        startLockTask(activity)
++    }
++
++    fun onActivityPaused() {
++        isForeground = false
++    }
++
++    /** ╨Т╤А╨╡╨╝╨╡╨╜╨╜╤Л╨╣ ╨▓╤Л╤Е╨╛╨┤ ╨╕╨╖ Lock Task ╨▓ ╤Б╨╕╤Б╤В╨╡╨╝╨╜╤Л╨╡ ╨╜╨░╤Б╤В╤А╨╛╨╣╨║╨╕ (spec ┬з6). */
++    fun beginExcursion(activity: Activity) {
++        excursionActive = true
++        try {
++            activity.stopLockTask()
++        } catch (e: Exception) {
++            Log.e(TAG, "stopLockTask failed", e)
++        }
++    }
++
++    fun shouldRestart(): Boolean = RestartPolicy.shouldRestart(isForeground, excursionActive)
++
++    private fun startLockTask(activity: Activity) {
++        if (!isDeviceOwner()) return
++        try {
++            activity.startLockTask()
++        } catch (e: Exception) {
++            Log.e(TAG, "startLockTask failed", e)
++        }
++    }
++}
+diff --git a/app/src/main/java/com/respondent/pro/kiosk/KioskPolicy.kt b/app/src/main/java/com/respondent/pro/kiosk/KioskPolicy.kt
+new file mode 100644
+index 0000000..c5c179e
+--- /dev/null
++++ b/app/src/main/java/com/respondent/pro/kiosk/KioskPolicy.kt
+@@ -0,0 +1,39 @@
++package com.respondent.pro.kiosk
++
++/** ╨з╨╕╤Б╤В╨╛╨╡ ╨╛╨┐╨╕╤Б╨░╨╜╨╕╨╡ ╨┐╨╛╨╗╨╕╤В╨╕╨║ тАФ ╨╕╤Б╨┐╨╛╨╗╨╜╤П╨╡╤В KioskManager. ╨С╨╡╨╖ Android-╨╖╨░╨▓╨╕╤Б╨╕╨╝╨╛╤Б╤В╨╡╨╣. */
++sealed interface PolicyAction {
++    object HideStatusBar : PolicyAction
++    object DisableKeyguard : PolicyAction
++    object BlockFactoryReset : PolicyAction
++    object BlockSafeBoot : PolicyAction
++    object MaxScreenTime : PolicyAction
++    data class ProtectApp(val pkg: String) : PolicyAction
++    data class WhitelistLockTask(val pkg: String) : PolicyAction
++}
++
++object KioskPolicy {
++    /** ╨Ь╨░╨║╤Б╨╕╨╝╨░╨╗╤М╨╜╨╛╨╡ ╨▓╤А╨╡╨╝╤П ╨┤╨╛ ╨▒╨╗╨╛╨║╨╕╤А╨╛╨▓╨║╨╕ ╤Н╨║╤А╨░╨╜╨░, ╨╝╤Б. ╨Ф╨░╨╗╨╡╨╡ ╤Б╨╕╤Б╤В╨╡╨╝╨╜╨╛╨╣ тАФ ╤Н╨║╤А╨░╨╜ ╨╜╨╡ ╨▒╨╗╨╛╨║╨╕╤А╤Г╨╡╤В╤Б╤П. */
++    const val MAX_LOCK_TIME_MS = Long.MAX_VALUE / 2
++
++    fun actions(isDeviceOwner: Boolean, pkg: String): List<PolicyAction> {
++        if (!isDeviceOwner) return emptyList()
++        return listOf(
++            PolicyAction.HideStatusBar,
++            PolicyAction.DisableKeyguard,
++            PolicyAction.BlockFactoryReset,
++            PolicyAction.BlockSafeBoot,
++            PolicyAction.MaxScreenTime,
++            PolicyAction.ProtectApp(pkg),
++            PolicyAction.WhitelistLockTask(pkg)
++        )
++    }
++}
++
++object RestartPolicy {
++    /**
++     * ╨Я╨╡╤А╨╡╨╖╨░╨┐╤Г╤Б╨║╨░╤В╤М, ╤В╨╛╨╗╤М╨║╨╛ ╨╡╤Б╨╗╨╕ ╨┐╤А╨╕╨╗╨╛╨╢╨╡╨╜╨╕╨╡ ╨▓ ╤Д╨╛╨╜╨╡ ╨Ш ╨╜╨╡╤В ╨▓╤Л╤Е╨╛╨┤╨░ ╨▓ ╤Б╨╕╤Б╤В╨╡╨╝╨╜╤Л╨╡ ╨╜╨░╤Б╤В╤А╨╛╨╣╨║╨╕
++     * (excursion) тАФ ╨╕╨╜╨░╤З╨╡ watchdog ╨▓╤Л╤В╨░╤Б╨║╨╕╨▓╨░╨╗ ╨▒╤Л ╨┐╨╛╨╗╤М╨╖╨╛╨▓╨░╤В╨╡╨╗╤П ╨╕╨╖ ╨╜╨░╤Б╤В╤А╨╛╨╡╨║ (spec ┬з6).
++     */
++    fun shouldRestart(isForeground: Boolean, excursionActive: Boolean): Boolean =
++        !isForeground && !excursionActive
++}
+diff --git a/app/src/main/java/com/respondent/pro/kiosk/ProvisioningQr.kt b/app/src/main/java/com/respondent/pro/kiosk/ProvisioningQr.kt
+new file mode 100644
+index 0000000..9037686
+--- /dev/null
++++ b/app/src/main/java/com/respondent/pro/kiosk/ProvisioningQr.kt
+@@ -0,0 +1,69 @@
++package com.respondent.pro.kiosk
++
++import android.content.Context
++import android.content.Intent
++import android.graphics.Bitmap
++import android.util.Log
++import androidx.core.content.FileProvider
++import com.google.gson.JsonObject
++import com.google.zxing.BarcodeFormat
++import com.journeyapps.barcodescanner.BarcodeEncoder
++import java.io.File
++import java.io.FileOutputStream
++
++/**
++ * Payload ╨┤╨╗╤П Android Enterprise QR-╨┐╤А╨╛╨▓╨╕╨╢╨╕╨╜╨╕╨╜╨│╨░.
++ * ╨д╨╛╤А╨╝╨░╤В ╨║╨╗╤О╤З╨╡╨╣: android.app.extra.PROVISIONING_* (spec ┬з8).
++ */
++object ProvisioningQr {
++
++    private const val TAG = "ProvisioningQr"
++
++    const val ADMIN_COMPONENT = "com.respondent.pro/.kiosk.KioskAdminReceiver"
++
++    fun buildPayload(apkUrl: String, wifiSsid: String?, wifiPassword: String?): String {
++        val root = JsonObject()
++        root.addProperty("android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME", ADMIN_COMPONENT)
++        root.addProperty("android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION", apkUrl)
++        if (!wifiSsid.isNullOrBlank()) {
++            root.addProperty("android.app.extra.PROVISIONING_WIFI_SSID", wifiSsid)
++            if (!wifiPassword.isNullOrEmpty()) {
++                root.addProperty("android.app.extra.PROVISIONING_WIFI_PASSWORD", wifiPassword)
++            }
++        }
++        root.addProperty("android.app.extra.PROVISIONING_SKIP_ENCRYPTION", true)
++        return root.toString()
++    }
++
++    /** ╨Ъ╨╛╨┤╨╕╤А╤Г╨╡╤В payload ╨▓ QR-╨╕╨╖╨╛╨▒╤А╨░╨╢╨╡╨╜╨╕╨╡. ╨Т╨╛╨╖╨▓╤А╨░╤Й╨░╨╡╤В null ╨┐╤А╨╕ ╨╛╤И╨╕╨▒╨║╨╡ ╨║╨╛╨┤╨╕╤А╨╛╨▓╨░╨╜╨╕╤П. */
++    fun encodeQr(payload: String, size: Int = 640): Bitmap? = try {
++        BarcodeEncoder().encodeBitmap(payload, BarcodeFormat.QR_CODE, size, size)
++    } catch (e: Exception) {
++        Log.e(TAG, "QR encode failed", e)
++        null
++    }
++
++    /** ╨б╨╛╤Е╤А╨░╨╜╤П╨╡╤В QR ╨▓ cacheDir ╨╕ ╨╛╤В╨║╤А╤Л╨▓╨░╨╡╤В ╨┤╨╕╨░╨╗╨╛╨│ ╨╛╤В╨┐╤А╨░╨▓╨║╨╕. false тАФ ╨┐╤А╨╕ ╨╛╤И╨╕╨▒╨║╨╡. */
++    fun shareQr(context: Context, payload: String): Boolean {
++        val bitmap = encodeQr(payload) ?: return false
++        return try {
++            val file = File(context.cacheDir, "provisioning_qr.png")
++            FileOutputStream(file).use { out ->
++                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
++            }
++            val uri = FileProvider.getUriForFile(
++                context, "${context.packageName}.fileprovider", file
++            )
++            val send = Intent(Intent.ACTION_SEND).apply {
++                type = "image/png"
++                putExtra(Intent.EXTRA_STREAM, uri)
++                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
++            }
++            context.startActivity(Intent.createChooser(send, "QR"))
++            true
++        } catch (e: Exception) {
++            Log.e(TAG, "shareQr failed", e)
++            false
++        }
++    }
++}
+diff --git a/app/src/main/java/com/respondent/pro/kiosk/RestartReceiver.kt b/app/src/main/java/com/respondent/pro/kiosk/RestartReceiver.kt
+new file mode 100644
+index 0000000..9ce8942
+--- /dev/null
++++ b/app/src/main/java/com/respondent/pro/kiosk/RestartReceiver.kt
+@@ -0,0 +1,62 @@
++package com.respondent.pro.kiosk
++
++import android.content.BroadcastReceiver
++import android.content.Context
++import android.content.Intent
++import android.util.Log
++import dagger.hilt.EntryPoint
++import dagger.hilt.InstallIn
++import dagger.hilt.android.EntryPointAccessors
++import dagger.hilt.components.SingletonComponent
++import com.respondent.pro.MainActivity
++
++@EntryPoint
++@InstallIn(SingletonComponent::class)
++interface KioskEntryPoint {
++    fun kioskManager(): KioskManager
++}
++
++/**
++ * ╨Я╤А╨╕╤С╨╝ alarm'╨╛╨▓ ╤Б╤В╤А╨░╨╢╨░ ╨╕ ╤А╨░╨╖╨╛╨▓╨╛╨│╨╛ ╨┐╨╡╤А╨╡╨╖╨░╨┐╤Г╤Б╨║╨░ (spec ┬з3).
++ * ACTION_WATCHDOG тАФ ╨▓╤Б╨╡╨│╨┤╨░ ╨┐╨╡╤А╨╡╨┐╨╗╨░╨╜╨╕╤А╤Г╨╡╤В ╤Б╨╗╨╡╨┤╤Г╤О╤Й╨╕╨╣ ╤И╨░╨│ (╤Ж╨╡╨┐╨╛╤З╨║╨░ ╨╜╨╡ ╤А╨▓╤С╤В╤Б╤П),
++ * ╨╕ ╨┐╨╡╤А╨╡╨╖╨░╨┐╤Г╤Б╨║╨░╨╡╤В ╨┐╤А╨╕╨╗╨╛╨╢╨╡╨╜╨╕╨╡, ╨╡╤Б╨╗╨╕ ╨╛╨╜╨╛ ╨▓ ╤Д╨╛╨╜╨╡ ╨╕ ╨╜╨╡ ╨╕╨┤╤С╤В excursion.
++ */
++class RestartReceiver : BroadcastReceiver() {
++
++    companion object {
++        private const val TAG = "RestartReceiver"
++    }
++
++    override fun onReceive(context: Context, intent: Intent) {
++        when (intent.action) {
++            WatchdogScheduler.ACTION_WATCHDOG -> {
++                WatchdogScheduler.scheduleNext(context)
++                maybeRestart(context)
++            }
++            WatchdogScheduler.ACTION_RESTART -> maybeRestart(context)
++        }
++    }
++
++    private fun maybeRestart(context: Context) {
++        val kiosk = EntryPointAccessors
++            .fromApplication(context.applicationContext, KioskEntryPoint::class.java)
++            .kioskManager()
++        if (!kiosk.shouldRestart()) {
++            // R8: ╨┐╤А╨╛╤И╨╕╨▓╨║╨░ ╨┐╨╛╨┤╨░╨▓╨╗╤П╨╡╤В Log.d тАФ verification-╤Б╤В╤А╨╛╨║╨╕ ╨┐╨╕╤И╨╡╨╝ ╤З╨╡╤А╨╡╨╖ Log.i
++            Log.i(TAG, "Skip restart (foreground=${kiosk.isForeground}, excursion=${kiosk.excursionActive})")
++            return
++        }
++        // R8: ╨┐╤А╨╛╤И╨╕╨▓╨║╨░ ╨┐╨╛╨┤╨░╨▓╨╗╤П╨╡╤В Log.d тАФ verification-╤Б╤В╤А╨╛╨║╨╕ ╨┐╨╕╤И╨╡╨╝ ╤З╨╡╤А╨╡╨╖ Log.i
++        Log.i(TAG, "Restarting MainActivity")
++        try {
++            val launch = Intent(context, MainActivity::class.java).apply {
++                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
++            }
++            context.startActivity(launch)
++        } catch (e: Exception) {
++            // Review Focus тДЦ1: ╨╜╨░ Android 10+ ╤Д╨╛╨╜╨╛╨▓╤Л╨╣ ╤Б╤В╨░╤А╤В ╨╝╨╛╨╢╨╡╤В ╨▒╤Л╤В╤М ╨╖╨░╨▒╨╗╨╛╨║╨╕╤А╨╛╨▓╨░╨╜ тАФ
++            // ╨╗╨╛╨│╨╕╤А╤Г╨╡╨╝; ╤Б╨╗╨╡╨┤╤Г╤О╤Й╨░╤П ╨┐╨╛╨┐╤Л╤В╨║╨░ ╤З╨╡╤А╨╡╨╖ 60 ╤Б╨╡╨║ (╤Ж╨╡╨┐╨╛╤З╨║╨░ alarm'╨╛╨▓ ╨┐╨╡╤А╨╡╨╢╨╕╨▓╨░╨╡╤В ╨╛╤В╨║╨░╨╖)
++            Log.e(TAG, "startActivity failed (background start restriction?)", e)
++        }
++    }
++}
+diff --git a/app/src/main/java/com/respondent/pro/kiosk/SettingsExcursionOverlay.kt b/app/src/main/java/com/respondent/pro/kiosk/SettingsExcursionOverlay.kt
+new file mode 100644
+index 0000000..ab9f75f
+--- /dev/null
++++ b/app/src/main/java/com/respondent/pro/kiosk/SettingsExcursionOverlay.kt
+@@ -0,0 +1,108 @@
++package com.respondent.pro.kiosk
++
++import android.content.Context
++import android.content.Intent
++import android.graphics.Color
++import android.graphics.PixelFormat
++import android.net.Uri
++import android.os.Build
++import android.provider.Settings
++import android.util.Log
++import android.view.Gravity
++import android.view.View
++import android.view.WindowManager
++import android.widget.TextView
++import com.respondent.pro.MainActivity
++
++/**
++ * ╨Я╨╗╨░╨▓╨░╤О╤Й╨░╤П ╨║╨╜╨╛╨┐╨║╨░ ┬лтЧА ╨Т RESPONDENT.PRO┬╗ ╨┐╨╛╨▓╨╡╤А╤Е ╤Б╨╕╤Б╤В╨╡╨╝╨╜╤Л╤Е ╨╜╨░╤Б╤В╤А╨╛╨╡╨║ (spec ┬з6).
++ * ╨Я╨╛╨║╨░╨╖╤Л╨▓╨░╨╡╤В╤Б╤П ╤В╨╛╨╗╤М╨║╨╛ ╨┐╤А╨╕ ╨╜╨░╨╗╨╕╤З╨╕╨╕ ╤А╨░╨╖╤А╨╡╤И╨╡╨╜╨╕╤П SYSTEM_ALERT_WINDOW.
++ */
++object SettingsExcursionOverlay {
++
++    private const val TAG = "ExcursionOverlay"
++    private const val OVERLAY_TEXT = "тЧА ╨Т RESPONDENT.PRO"
++
++    private var currentView: View? = null
++
++    fun canDraw(context: Context): Boolean = Settings.canDrawOverlays(context)
++
++    /** ╨Ю╤В╨║╤А╤Л╨▓╨░╨╡╤В ╤Б╨╕╤Б╤В╨╡╨╝╨╜╤Л╨╣ ╤Н╨║╤А╨░╨╜ ╨▓╤Л╨┤╨░╤З╨╕ ╤А╨░╨╖╤А╨╡╤И╨╡╨╜╨╕╤П ┬л╨Я╨╛╨▓╨╡╤А╤Е ╨┤╤А╤Г╨│╨╕╤Е ╨╛╨║╨╛╨╜┬╗. */
++    fun openPermissionScreen(context: Context) {
++        try {
++            val intent = Intent(
++                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
++                Uri.parse("package:${context.packageName}")
++            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
++            context.startActivity(intent)
++        } catch (e: Exception) {
++            Log.e(TAG, "openPermissionScreen failed", e)
++        }
++    }
++
++    fun show(context: Context) {
++        if (currentView != null) return
++        if (!canDraw(context)) {
++            Log.i(TAG, "Overlay permission not granted тАФ button not shown")
++            return
++        }
++        try {
++            val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
++            val density = context.resources.displayMetrics.density
++            val params = WindowManager.LayoutParams(
++                WindowManager.LayoutParams.WRAP_CONTENT,
++                WindowManager.LayoutParams.WRAP_CONTENT,
++                if (Build.VERSION.SDK_INT >= 26) {
++                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
++                } else {
++                    @Suppress("DEPRECATION")
++                    WindowManager.LayoutParams.TYPE_SYSTEM_ALERT
++                },
++                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
++                PixelFormat.TRANSLUCENT
++            ).apply {
++                gravity = Gravity.BOTTOM or Gravity.END
++                x = (16 * density).toInt()
++                y = (96 * density).toInt() // ╨▓╤Л╤И╨╡ ╤Б╨╕╤Б╤В╨╡╨╝╨╜╨╛╨╣ ╨┐╨░╨╜╨╡╨╗╨╕ ╨╜╨░╨▓╨╕╨│╨░╤Ж╨╕╨╕
++            }
++            val view = TextView(context).apply {
++                text = OVERLAY_TEXT
++                setBackgroundColor(0xE6000000.toInt())
++                setTextColor(Color.WHITE)
++                setPadding(
++                    (14 * density).toInt(), (10 * density).toInt(),
++                    (14 * density).toInt(), (10 * density).toInt()
++                )
++                textSize = 15f
++                setOnClickListener {
++                    try {
++                        val back = Intent(context, MainActivity::class.java).apply {
++                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
++                        }
++                        context.startActivity(back)
++                    } catch (e: Exception) {
++                        Log.e(TAG, "return to app failed", e)
++                    }
++                    hide(context)
++                }
++            }
++            wm.addView(view, params)
++            currentView = view
++            Log.i(TAG, "Overlay shown")
++        } catch (e: Exception) {
++            Log.e(TAG, "show failed", e)
++        }
++    }
++
++    fun hide(context: Context) {
++        val view = currentView ?: return
++        try {
++            val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
++            wm.removeView(view)
++        } catch (e: Exception) {
++            Log.e(TAG, "hide failed", e)
++        }
++        currentView = null
++        Log.i(TAG, "Overlay hidden")
++    }
++}
+diff --git a/app/src/main/java/com/respondent/pro/kiosk/WatchdogScheduler.kt b/app/src/main/java/com/respondent/pro/kiosk/WatchdogScheduler.kt
+new file mode 100644
+index 0000000..21fcd5f
+--- /dev/null
++++ b/app/src/main/java/com/respondent/pro/kiosk/WatchdogScheduler.kt
+@@ -0,0 +1,84 @@
++package com.respondent.pro.kiosk
++
++import android.app.AlarmManager
++import android.app.PendingIntent
++import android.content.Context
++import android.content.Intent
++import android.os.Build
++import android.util.Log
++
++/**
++ * ╨ж╨╡╨┐╨╛╤З╨║╨░ alarm'╨╛╨▓: ╨║╨░╨╢╨┤╤Г╤О ╨╝╨╕╨╜╤Г╤В╤Г RestartReceiver ╨┐╤А╨╛╨▓╨╡╤А╤П╨╡╤В тАФ ╨╜╨░ ╤Н╨║╤А╨░╨╜╨╡ ╨╗╨╕ ╨┐╤А╨╕╨╗╨╛╨╢╨╡╨╜╨╕╨╡,
++ * ╨╕╨╜╨░╤З╨╡ ╨┐╨╡╤А╨╡╨╖╨░╨┐╤Г╤Б╨║╨░╨╡╤В (spec ┬з3). ╨в╨╛╤З╨╜╨╛╤Б╤В╤М: exact, ╨┐╤А╨╕ ╨╛╤В╨║╨░╨╖╨╡ (API 31+) тАФ ╨╜╨╡╤В╨╛╤З╨╜╤Л╨╣.
++ */
++object WatchdogScheduler {
++
++    private const val TAG = "WatchdogScheduler"
++
++    const val ACTION_WATCHDOG = "com.respondent.pro.kiosk.ACTION_WATCHDOG"
++    const val ACTION_RESTART = "com.respondent.pro.kiosk.ACTION_RESTART"
++
++    const val PERIOD_MS = 60_000L
++    const val CRASH_DELAY_MS = 1_000L
++
++    private const val REQUEST_WATCHDOG = 1001
++    private const val REQUEST_RESTART = 1002
++
++    enum class AlarmMode { EXACT, INEXACT }
++
++    /** ╨а╨╡╤И╨░╨╗╨║╨░ (TDD): exact-alarm ╤А╨░╨╖╤А╨╡╤И╤С╨╜ ╤В╨╛╨╗╤М╨║╨╛ ╤Б API 31 ╨╕ ╤В╨╛╨╗╤М╨║╨╛ ╨╡╤Б╨╗╨╕ ╨╜╨╡ ╨╛╤В╨╛╨╖╨▓╨░╨╜. */
++    fun decide(sdkInt: Int, canScheduleExact: Boolean): AlarmMode =
++        if (sdkInt >= 31 && !canScheduleExact) AlarmMode.INEXACT else AlarmMode.EXACT
++
++    private fun mode(context: Context): AlarmMode {
++        val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
++        // Short-circuit = guard ╨┤╨╗╤П Android 7-10 (canScheduleExactAlarms ╨┐╨╛╤П╨▓╨╕╨╗╤Б╤П ╨▓ API 31)
++        val canExact = Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()
++        return decide(Build.VERSION.SDK_INT, canExact)
++    }
++
++    private fun pendingIntent(context: Context, action: String, requestCode: Int): PendingIntent =
++        PendingIntent.getBroadcast(
++            context,
++            requestCode,
++            Intent(context, RestartReceiver::class.java).setAction(action),
++            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
++        )
++
++    /** ╨б╨╗╨╡╨┤╤Г╤О╤Й╨╕╨╣ ╤И╨░╨│ ╨┐╨╡╤А╨╕╨╛╨┤╨╕╤З╨╡╤Б╨║╨╛╨│╨╛ ╤Б╤В╤А╨░╨╢╨░ (╨▓╤Л╨╖╤Л╨▓╨░╨╡╤В╤Б╤П ╨┐╤А╨╕ ╤Б╤В╨░╤А╤В╨╡ ╨┐╤А╨╕╨╗╨╛╨╢╨╡╨╜╨╕╤П ╨╕ ╨╕╨╖ receiver'╨░). */
++    fun scheduleNext(context: Context) {
++        try {
++            val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
++            val trigger = System.currentTimeMillis() + PERIOD_MS
++            val pi = pendingIntent(context, ACTION_WATCHDOG, REQUEST_WATCHDOG)
++            val alarmMode = mode(context)
++            if (alarmMode == AlarmMode.EXACT) {
++                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pi)
++            } else {
++                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pi)
++            }
++            // R8: ╨┐╤А╨╛╤И╨╕╨▓╨║╨░ ╨┐╨╛╨┤╨░╨▓╨╗╤П╨╡╤В Log.d тАФ verification-╤Б╤В╤А╨╛╨║╨╕ ╨┐╨╕╤И╨╡╨╝ ╤З╨╡╤А╨╡╨╖ Log.i
++            Log.i(TAG, "Watchdog armed ($alarmMode)")
++        } catch (e: Exception) {
++            Log.e(TAG, "scheduleNext failed", e)
++        }
++    }
++
++    /** ╨а╨░╨╖╨╛╨▓╤Л╨╣ ╨┐╨╡╤А╨╡╨╖╨░╨┐╤Г╤Б╨║ ╨┐╨╛╤Б╨╗╨╡ ╨║╤А╤Н╤И╨░ (spec ┬з3: CrashHandler тЖТ ~1 ╤Б╨╡╨║). */
++    fun scheduleRestart(context: Context, delayMs: Long = CRASH_DELAY_MS) {
++        try {
++            val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
++            val trigger = System.currentTimeMillis() + delayMs
++            val pi = pendingIntent(context, ACTION_RESTART, REQUEST_RESTART)
++            if (mode(context) == AlarmMode.EXACT) {
++                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pi)
++            } else {
++                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pi)
++            }
++            // R8: ╨┐╤А╨╛╤И╨╕╨▓╨║╨░ ╨┐╨╛╨┤╨░╨▓╨╗╤П╨╡╤В Log.d тАФ verification-╤Б╤В╤А╨╛╨║╨╕ ╨┐╨╕╤И╨╡╨╝ ╤З╨╡╤А╨╡╨╖ Log.i
++            Log.i(TAG, "Restart alarm in ${delayMs}ms")
++        } catch (e: Exception) {
++            Log.e(TAG, "scheduleRestart failed", e)
++        }
++    }
++}
+diff --git a/app/src/main/java/com/respondent/pro/ui/i18n/AppStrings.kt b/app/src/main/java/com/respondent/pro/ui/i18n/AppStrings.kt
+index 4c887bf..2bb5d86 100644
+--- a/app/src/main/java/com/respondent/pro/ui/i18n/AppStrings.kt
++++ b/app/src/main/java/com/respondent/pro/ui/i18n/AppStrings.kt
+@@ -46,6 +46,20 @@ class AppStrings(
+     val smtpSslLabel: String,
+     // ╨Ш╨╜╤Б╤В╤А╤Г╨║╤Ж╨╕╨╕
+     val instructionsTitle: String,
++    // ╨Ш╨╜╤Д╨╛╨║╨╕╨╛╤Б╨║
++    val kioskTitle: String,
++    val kioskStatusOwner: String,
++    val kioskStatusLock: String,
++    val kioskStatusNoOwner: String,
++    val kioskAdbSpoiler: String,
++    val kioskAdbSteps: String,
++    val kioskCmdHint: String,
++    val kioskQrSpoiler: String,
++    val kioskQrSteps: String,
++    val kioskQrSsidLabel: String,
++    val kioskQrPasswordLabel: String,
++    val kioskQrShowButton: String,
++    val kioskQrShareButton: String,
+     // ╨б╤В╨░╤А╤В╨╛╨▓╤Л╨╣ ╤Н╨║╤А╨░╨╜
+     val btnDone: String,
+     val defaultCallToAction: String,
+@@ -96,6 +110,27 @@ val ruStrings = AppStrings(
+     smtpPortLabel = "SMTP ╨┐╨╛╤А╤В",
+     smtpSslLabel = "SSL",
+     instructionsTitle = "╨Ш╨╜╤Б╤В╤А╤Г╨║╤Ж╨╕╨╕",
++    kioskTitle = "╨Ш╨Э╨д╨Ю╨Ъ╨Ш╨Ю╨б╨Ъ",
++    kioskStatusOwner = "тЬЕ Device Owner ╨▓╤Л╨┤╨░╨╜",
++    kioskStatusLock = "Lock Task ╨░╨║╤В╨╕╨▓╨╡╨╜",
++    kioskStatusNoOwner = "тЪая╕П Device Owner ╨╜╨╡ ╨▓╤Л╨┤╨░╨╜ тАФ ╨┐╨╛╨╗╨╜╨░╤П ╨▒╨╗╨╛╨║╨╕╤А╨╛╨▓╨║╨░ ╨╜╨╡╨┤╨╛╤Б╤В╤Г╨┐╨╜╨░",
++    kioskAdbSpoiler = "╨Э╨░╤Б╤В╤А╨╛╨╣╨║╨░ ╤З╨╡╤А╨╡╨╖ ADB (╤Б ╨Я╨Ъ)",
++    kioskAdbSteps = "1. ╨Т╨║╨╗╤О╤З╨╕╤В╨╡ USB-╨╛╤В╨╗╨░╨┤╨║╤Г: ╨Я╨░╤А╨░╨╝╨╡╤В╤А╤Л тЖТ ╨Ю ╤В╨╡╨╗╨╡╤Д╨╛╨╜╨╡ тЖТ 7 ╨║╨░╤Б╨░╨╜╨╕╨╣ ╨┐╨╛ ┬л╨Э╨╛╨╝╨╡╤А╤Г ╤Б╨▒╨╛╤А╨║╨╕┬╗.\n" +
++        "2. ╨б╨║╨░╤З╨░╨╣╤В╨╡ APK ╨┐╨╛ ╤Б╤Б╤Л╨╗╨║╨╡ ╨╜╨╕╨╢╨╡ (╨╜╨░╨╢╨░╤В╨╕╨╡ ╨║╨╛╨┐╨╕╤А╤Г╨╡╤В).\n" +
++        "3. ╨Я╨╛╨┤╨║╨╗╤О╤З╨╕╤В╨╡ ╨┐╨╗╨░╨╜╤И╨╡╤В ╨║ ╨Я╨Ъ ╨╕ ╨▓╤Л╨┐╨╛╨╗╨╜╨╕╤В╨╡ ╨║╨╛╨╝╨░╨╜╨┤╤Л ╨┐╨╛ ╨╛╨┤╨╜╨╛╨╣ (╨╜╨░╨╢╨░╤В╨╕╨╡ ╨║╨╛╨┐╨╕╤А╤Г╨╡╤В ╨║╨╛╨╝╨░╨╜╨┤╤Г).\n" +
++        "4. ╨Т╨╡╤А╨╜╨╕╤В╨╡╤Б╤М ╨▓ ╨┐╤А╨╕╨╗╨╛╨╢╨╡╨╜╨╕╨╡ тАФ ╤Б╤В╨░╤В╤Г╤Б ╨┤╨╛╨╗╨╢╨╡╨╜ ╤Б╤В╨░╤В╤М тЬЕ.",
++    kioskCmdHint = "╨Э╨░╨╢╨╝╨╕╤В╨╡ ╨╜╨░ ╤В╨╡╨║╤Б╤В, ╤З╤В╨╛╨▒╤Л ╤Б╨║╨╛╨┐╨╕╤А╨╛╨▓╨░╤В╤М",
++    kioskQrSpoiler = "╨Э╨░╤Б╤В╤А╨╛╨╣╨║╨░ ╤З╨╡╤А╨╡╨╖ QR-╨║╨╛╨┤ (╨▒╨╡╨╖ ╨Я╨Ъ)",
++    kioskQrSteps = "1. ╨Т╨▓╨╡╨┤╨╕╤В╨╡ Wi-Fi (╨╕╨╗╨╕ ╨╛╤Б╤В╨░╨▓╤М╤В╨╡ ╨┐╤Г╤Б╤В╤Л╨╝ тАФ ╤Б╨╡╤В╤М ╨▓╤Л╨▒╨╡╤А╤Г╤В ╨▓ ╨╝╨░╤Б╤В╨╡╤А╨╡) ╨╕ ╨╜╨░╨╢╨╝╨╕╤В╨╡ ┬л╨Я╨╛╨║╨░╨╖╨░╤В╤М QR-╨║╨╛╨┤┬╗.\n" +
++        "2. ╨б╨╛╤Е╤А╨░╨╜╨╕╤В╨╡/╨╛╤В╨┐╤А╨░╨▓╨╕╤В╨╡ QR ╨╕╨╖╨╛╨▒╤А╨░╨╢╨╡╨╜╨╕╨╡ ╨╜╨░ ╨▓╤В╨╛╤А╨╛╨╣ ╤Г╤Б╤В╤А╨╛╨╣╤Б╤В╨▓╨╛ (╤В╨╡╨╗╨╡╤Д╨╛╨╜).\n" +
++        "3. ╨б╨▒╤А╨╛╤Б╤М╤В╨╡ ╨┐╨╗╨░╨╜╤И╨╡╤В ╨┤╨╛ ╨╖╨░╨▓╨╛╨┤╤Б╨║╨╛╨│╨╛ ╨╜╨░╤Б╤В╤А╨╛╨╡╨║.\n" +
++        "4. ╨Э╨░ ╨┐╤А╨╕╨▓╨╡╤В╤Б╤В╨▓╨╡╨╜╨╜╨╛╨╝ ╤Н╨║╤А╨░╨╜╨╡: Android 7тАУ9 тАФ 6 ╨║╨░╤Б╨░╨╜╨╕╨╣ ╨┐╨╛ ╤Н╨║╤А╨░╨╜╤Г; Android 10+ тАФ ╨╕╨║╨╛╨╜╨║╨░ ╨┤╨╛╤Б╤В╤Г╨┐╨╜╨╛╤Б╤В╨╕ тЖТ ╨║╨░╨╝╨╡╤А╨░.\n" +
++        "5. ╨Э╨░╨▓╨╡╨┤╨╕╤В╨╡ ╨║╨░╨╝╨╡╤А╤Г ╨╜╨░ QR: ╨┐╨╗╨░╨╜╤И╨╡╤В ╤Б╨║╨░╤З╨░╨╡╤В APK, ╤Б╤В╨░╨╜╨╡╤В Device Owner ╨╕ ╨┐╨╛╨┤╨║╨╗╤О╤З╨╕╤В╤Б╤П ╨║ Wi-Fi.\n" +
++        "6. ╨Я╨╛╤Б╨╗╨╡ ╨╖╨░╨┐╤Г╤Б╨║╨░: ╨▓╤Л╨▒╨╡╤А╨╕╤В╨╡ ╨╗╨░╤Г╨╜╤З╨╡╤А (╨╛╨┤╨╕╨╜ ╤А╨░╨╖) ╨╕ ╨▓╤Л╨┤╨░╨╣╤В╨╡ ╤А╨░╨╖╤А╨╡╤И╨╡╨╜╨╕╨╡ ┬л╨Я╨╛╨▓╨╡╤А╤Е ╨┤╤А╤Г╨│╨╕╤Е ╨╛╨║╨╛╨╜┬╗.",
++    kioskQrSsidLabel = "Wi-Fi ╤Б╨╡╤В╤М (SSID)",
++    kioskQrPasswordLabel = "╨Я╨░╤А╨╛╨╗╤М Wi-Fi",
++    kioskQrShowButton = "╨Я╨╛╨║╨░╨╖╨░╤В╤М QR-╨║╨╛╨┤",
++    kioskQrShareButton = "╨Я╨╛╨┤╨╡╨╗╨╕╤В╤М╤Б╤П",
+     btnDone = "╨У╨╛╤В╨╛╨▓╨╛",
+     defaultCallToAction = "╨Я╨╛╨╢╨░╨╗╤Г╨╣╤Б╤В╨░ ╨╛╤Ж╨╡╨╜╨╕╤В╨╡ ╨╜╨░╤И╨╕ ╤Г╤Б╨╗╤Г╨│╨╕",
+     pinDialogTitle = "╨Т╨▓╨╡╨┤╨╕╤В╨╡ PIN",
+@@ -143,6 +178,27 @@ val enStrings = AppStrings(
+     smtpPortLabel = "SMTP port",
+     smtpSslLabel = "SSL",
+     instructionsTitle = "Instructions",
++    kioskTitle = "KIOSK MODE",
++    kioskStatusOwner = "тЬЕ Device Owner granted",
++    kioskStatusLock = "Lock Task active",
++    kioskStatusNoOwner = "тЪая╕П Device Owner not granted тАФ full lockdown unavailable",
++    kioskAdbSpoiler = "Setup via ADB (from PC)",
++    kioskAdbSteps = "1. Enable USB debugging: Settings тЖТ About tablet тЖТ tap \"Build number\" 7 times.\n" +
++        "2. Download the APK via the link below (tap to copy).\n" +
++        "3. Connect the tablet to a PC and run the commands one by one (tap to copy).\n" +
++        "4. Return to the app тАФ status should become тЬЕ.",
++    kioskCmdHint = "Tap text to copy",
++    kioskQrSpoiler = "Setup via QR code (no PC)",
++    kioskQrSteps = "1. Enter Wi-Fi (or leave empty тАФ network is chosen in the wizard) and tap \"Show QR code\".\n" +
++        "2. Save/share the QR image to another device (phone).\n" +
++        "3. Factory-reset the tablet.\n" +
++        "4. On the welcome screen: Android 7тАУ9 тАФ tap the screen 6 times; Android 10+ тАФ accessibility icon тЖТ camera.\n" +
++        "5. Point the camera at the QR: the tablet downloads the APK, becomes Device Owner and connects to Wi-Fi.\n" +
++        "6. On first launch: choose the launcher (once) and grant \"Display over other apps\".",
++    kioskQrSsidLabel = "Wi-Fi network (SSID)",
++    kioskQrPasswordLabel = "Wi-Fi password",
++    kioskQrShowButton = "Show QR code",
++    kioskQrShareButton = "Share",
+     btnDone = "Done",
+     defaultCallToAction = "Please rate our services",
+     pinDialogTitle = "Enter PIN",
+diff --git a/app/src/main/java/com/respondent/pro/ui/screens/SettingsScreen.kt b/app/src/main/java/com/respondent/pro/ui/screens/SettingsScreen.kt
+index f186f33..5aaf120 100644
+--- a/app/src/main/java/com/respondent/pro/ui/screens/SettingsScreen.kt
++++ b/app/src/main/java/com/respondent/pro/ui/screens/SettingsScreen.kt
+@@ -1,8 +1,13 @@
+ package com.respondent.pro.ui.screens
+ 
++import android.content.ClipData
++import android.content.ClipboardManager
++import android.content.Context
+ import android.content.Intent
+ import android.provider.Settings
+ import androidx.compose.animation.AnimatedVisibility
++import androidx.compose.foundation.Image
++import androidx.compose.foundation.background
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.*
+ import androidx.compose.foundation.rememberScrollState
+@@ -12,14 +17,21 @@ import androidx.compose.material3.*
+ import androidx.compose.runtime.*
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.graphics.asImageBitmap
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.LocalWindowInfo
++import androidx.compose.ui.text.font.FontFamily
+ import androidx.compose.ui.text.input.KeyboardType
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.foundation.layout.WindowInsets
+ import androidx.compose.foundation.layout.imePadding
+ import androidx.compose.foundation.layout.windowInsetsPadding
+ import com.respondent.pro.data.repository.AppSettings
++import com.respondent.pro.kiosk.KioskConfig
++import com.respondent.pro.kiosk.KioskManager
++import com.respondent.pro.kiosk.KioskStatus
++import com.respondent.pro.kiosk.ProvisioningQr
++import com.respondent.pro.kiosk.SettingsExcursionOverlay
+ import com.respondent.pro.ui.i18n.LocalAppStrings
+ import com.respondent.pro.viewmodel.ChatIdResult
+ import com.respondent.pro.viewmodel.SettingsViewModel
+@@ -33,6 +45,7 @@ fun SettingsScreen(
+     val settings by viewModel.settings.collectAsState()
+     var localSettings by remember(settings.copy(language = "")) { mutableStateOf(settings) }
+     val context = LocalContext.current
++    val kioskManager = viewModel.kiosk
+     val strings = LocalAppStrings.current
+     var langExpanded by remember { mutableStateOf(false) }
+     var sendMethodExpanded by remember { mutableStateOf(false) }
+@@ -42,6 +55,24 @@ fun SettingsScreen(
+     val isDetectingChatId by viewModel.isDetectingChatId.collectAsState()
+ 
+     var instructionsExpanded by remember { mutableStateOf(false) }
++    var kioskExpanded by remember { mutableStateOf(false) }
++    var adbExpanded by remember { mutableStateOf(false) }
++    var qrExpanded by remember { mutableStateOf(false) }
++    var qrSsid by remember { mutableStateOf("") }
++    var qrPassword by remember { mutableStateOf("") }
++    var qrBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
++
++    // Payload QR-╨┐╤А╨╛╨▓╨╕╨╢╨╕╨╜╨╕╨╜╨│╨░ ╤Б╨╛╨▒╨╕╤А╨░╨╡╤В╤Б╤П ╨╛╨┤╨╕╨╜╨░╨║╨╛╨▓╨╛ ╨┤╨╗╤П ╨┐╨╛╨║╨░╨╖╨░ ╨╕ ╨╛╤В╨┐╤А╨░╨▓╨║╨╕
++    val buildQrPayload = {
++        ProvisioningQr.buildPayload(
++            KioskConfig.APK_DOWNLOAD_URL,
++            qrSsid.ifBlank { null },
++            qrPassword.ifBlank { null }
++        )
++    }
++
++    val kioskStatus by viewModel.kioskStatus.collectAsState()
++    LaunchedEffect(Unit) { viewModel.refreshKioskStatus() }
+ 
+     // Auto-fill Chat ID when detected
+     LaunchedEffect(chatIdResult) {
+@@ -205,7 +236,18 @@ fun SettingsScreen(
+             // 10. ╨Э╨░╤Б╤В╤А╨╛╨╣╨║╨╕ Android
+             Button(
+                 onClick = {
+-                    context.startActivity(Intent(Settings.ACTION_SETTINGS))
++                    val activity = context as? android.app.Activity
++                    if (activity != null) {
++                        // ╨д╨╗╨░╨│ excursion ╨┐╨╛╨┤╨╜╨╕╨╝╨░╨╡╨╝ ╨Ф╨Ю ╤Г╤Е╨╛╨┤╨░ ╨╕╨╖ foreground (╨║╨╛╨╜╤В╤А╨░╨║╤В M3)
++                        kioskManager.beginExcursion(activity)
++                    }
++                    if (SettingsExcursionOverlay.canDraw(context)) {
++                        context.startActivity(Intent(Settings.ACTION_SETTINGS))
++                        SettingsExcursionOverlay.show(context)
++                    } else {
++                        // ╨а╨░╨╖╤А╨╡╤И╨╡╨╜╨╕╤П ╨╜╨╡╤В тАФ ╨╛╨┤╨╕╨╜ ╤А╨░╨╖ ╨┐╤А╨╛╤Б╨╕╨╝ ╨╡╨│╨╛ ╨▓╤Л╨┤╨░╤В╤М (spec ┬з6)
++                        SettingsExcursionOverlay.openPermissionScreen(context)
++                    }
+                 },
+                 modifier = Modifier.fillMaxWidth(),
+                 colors = ButtonDefaults.outlinedButtonColors()
+@@ -467,6 +509,50 @@ fun SettingsScreen(
+                 sendMethod = localSettings.sendMethod
+             )
+ 
++            // 13. ╨Ш╨╜╤Д╨╛╨║╨╕╨╛╤Б╨║ тАФ ╤Б╤В╨░╤В╤Г╤Б ╨╕ ╨╕╨╜╤Б╤В╤А╤Г╨║╤Ж╨╕╨╕
++            KioskCard(
++                status = kioskStatus,
++                expanded = kioskExpanded,
++                onToggle = { kioskExpanded = !kioskExpanded },
++                adbExpanded = adbExpanded,
++                onToggleAdb = { adbExpanded = !adbExpanded },
++                qrExpanded = qrExpanded,
++                onToggleQr = { qrExpanded = !qrExpanded },
++                qrSsid = qrSsid,
++                onSsidChange = { qrSsid = it },
++                qrPassword = qrPassword,
++                onPasswordChange = { qrPassword = it },
++                onShowQr = { qrBitmap = ProvisioningQr.encodeQr(buildQrPayload()) },
++                qrBitmap = qrBitmap,
++                onDismissQr = { qrBitmap = null },
++                onShareQr = { ProvisioningQr.shareQr(context, buildQrPayload()) }
++            )
++
++            // ╨Ф╨╕╨░╨╗╨╛╨│ ╤Б QR-╨╕╨╖╨╛╨▒╤А╨░╨╢╨╡╨╜╨╕╨╡╨╝
++            qrBitmap?.let { bmp ->
++                AlertDialog(
++                    onDismissRequest = { qrBitmap = null },
++                    title = { Text(strings.kioskQrShowButton) },
++                    text = {
++                        Image(
++                            bitmap = bmp.asImageBitmap(),
++                            contentDescription = strings.kioskQrShowButton,
++                            modifier = Modifier.fillMaxWidth()
++                        )
++                    },
++                    confirmButton = {
++                        TextButton(onClick = { ProvisioningQr.shareQr(context, buildQrPayload()) }) {
++                            Text(strings.kioskQrShareButton)
++                        }
++                    },
++                    dismissButton = {
++                        TextButton(onClick = { qrBitmap = null }) {
++                            Text(strings.btnCancel)
++                        }
++                    }
++                )
++            }
++
+             Spacer(modifier = Modifier.height(24.dp))
+         }
+     }
+@@ -684,3 +770,174 @@ private fun EmailInstructions() {
+         }
+     }
+ }
++
++@Composable
++private fun KioskCard(
++    status: KioskStatus?,
++    expanded: Boolean,
++    onToggle: () -> Unit,
++    adbExpanded: Boolean,
++    onToggleAdb: () -> Unit,
++    qrExpanded: Boolean,
++    onToggleQr: () -> Unit,
++    qrSsid: String,
++    onSsidChange: (String) -> Unit,
++    qrPassword: String,
++    onPasswordChange: (String) -> Unit,
++    onShowQr: () -> Unit,
++    qrBitmap: android.graphics.Bitmap?,
++    onDismissQr: () -> Unit,
++    onShareQr: () -> Unit
++) {
++    val strings = LocalAppStrings.current
++    val context = LocalContext.current
++
++    Card(
++        modifier = Modifier
++            .fillMaxWidth()
++            .clickable { onToggle() },
++        colors = CardDefaults.cardColors(
++            containerColor = MaterialTheme.colorScheme.surfaceVariant
++        )
++    ) {
++        Column(modifier = Modifier.padding(16.dp)) {
++            Row(
++                modifier = Modifier.fillMaxWidth(),
++                horizontalArrangement = Arrangement.SpaceBetween,
++                verticalAlignment = Alignment.CenterVertically
++            ) {
++                Text(
++                    text = strings.kioskTitle,
++                    style = MaterialTheme.typography.titleMedium
++                )
++                Text(
++                    text = if (expanded) "тЦ▓" else "тЦ╝",
++                    style = MaterialTheme.typography.titleMedium
++                )
++            }
++
++            // ╨б╤В╨░╤В╤Г╤Б ╨▓╨╕╨┤╨╡╨╜ ╨▓╤Б╨╡╨│╨┤╨░, ╨┤╨░╨╢╨╡ ╤Б╨▓╤С╤А╨╜╤Г╤В╤Л╨╝
++            Text(
++                text = when {
++                    status == null -> ""
++                    status.deviceOwner && status.lockTaskPermitted ->
++                        "${strings.kioskStatusOwner}\n${strings.kioskStatusLock}"
++                    status.deviceOwner -> strings.kioskStatusOwner
++                    else -> strings.kioskStatusNoOwner
++                },
++                style = MaterialTheme.typography.bodyMedium,
++                color = if (status?.deviceOwner == true) {
++                    MaterialTheme.colorScheme.primary
++                } else {
++                    MaterialTheme.colorScheme.error
++                },
++                modifier = Modifier.padding(top = 4.dp)
++            )
++
++            AnimatedVisibility(visible = expanded) {
++                Column(modifier = Modifier.padding(top = 12.dp)) {
++                    // тЦ╢ ╨Э╨░╤Б╤В╤А╨╛╨╣╨║╨░ ╤З╨╡╤А╨╡╨╖ ADB
++                    Row(
++                        modifier = Modifier
++                            .fillMaxWidth()
++                            .clickable { onToggleAdb() },
++                        horizontalArrangement = Arrangement.SpaceBetween
++                    ) {
++                        Text(
++                            text = strings.kioskAdbSpoiler,
++                            style = MaterialTheme.typography.titleSmall
++                        )
++                        Text(text = if (adbExpanded) "тЦ▓" else "тЦ╝")
++                    }
++
++                    AnimatedVisibility(visible = adbExpanded) {
++                        Column(modifier = Modifier.padding(top = 8.dp)) {
++                            Text(
++                                text = strings.kioskAdbSteps,
++                                style = MaterialTheme.typography.bodySmall
++                            )
++                            // ╨б╤Б╤Л╨╗╨║╨░ ╨╜╨░ APK тАФ ╨║╨╛╨┐╨╕╤А╤Г╨╡╤В╤Б╤П ╨┐╨╛ ╨╜╨░╨╢╨░╤В╨╕╤О
++                            CommandText(text = KioskConfig.APK_DOWNLOAD_URL)
++                            Spacer(modifier = Modifier.height(8.dp))
++                            Text(
++                                text = strings.kioskCmdHint,
++                                style = MaterialTheme.typography.bodySmall,
++                                color = MaterialTheme.colorScheme.onSurfaceVariant
++                            )
++                            KioskConfig.adbCommands().forEach { cmd ->
++                                CommandText(text = cmd)
++                            }
++                        }
++                    }
++
++                    // тЦ╢ ╨Э╨░╤Б╤В╤А╨╛╨╣╨║╨░ ╤З╨╡╤А╨╡╨╖ QR-╨║╨╛╨┤
++                    Spacer(modifier = Modifier.height(12.dp))
++                    Row(
++                        modifier = Modifier
++                            .fillMaxWidth()
++                            .clickable { onToggleQr() },
++                        horizontalArrangement = Arrangement.SpaceBetween
++                    ) {
++                        Text(
++                            text = strings.kioskQrSpoiler,
++                            style = MaterialTheme.typography.titleSmall
++                        )
++                        Text(text = if (qrExpanded) "тЦ▓" else "тЦ╝")
++                    }
++
++                    AnimatedVisibility(visible = qrExpanded) {
++                        Column(modifier = Modifier.padding(top = 8.dp)) {
++                            Text(
++                                text = strings.kioskQrSteps,
++                                style = MaterialTheme.typography.bodySmall
++                            )
++                            Spacer(modifier = Modifier.height(8.dp))
++                            OutlinedTextField(
++                                value = qrSsid,
++                                onValueChange = onSsidChange,
++                                label = { Text(strings.kioskQrSsidLabel) },
++                                modifier = Modifier.fillMaxWidth(),
++                                singleLine = true
++                            )
++                            OutlinedTextField(
++                                value = qrPassword,
++                                onValueChange = onPasswordChange,
++                                label = { Text(strings.kioskQrPasswordLabel) },
++                                modifier = Modifier.fillMaxWidth(),
++                                singleLine = true
++                            )
++                            Button(
++                                onClick = onShowQr,
++                                modifier = Modifier
++                                    .fillMaxWidth()
++                                    .padding(top = 8.dp)
++                            ) {
++                                Text(strings.kioskQrShowButton)
++                            }
++                        }
++                    }
++                }
++            }
++        }
++    }
++}
++
++@Composable
++private fun CommandText(text: String) {
++    val context = LocalContext.current
++    Text(
++        text = text,
++        fontFamily = FontFamily.Monospace,
++        style = MaterialTheme.typography.bodySmall,
++        color = MaterialTheme.colorScheme.primary,
++        modifier = Modifier
++            .fillMaxWidth()
++            .clickable {
++                val clipboard =
++                    context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
++                clipboard.setPrimaryClip(ClipData.newPlainText("adb", text))
++            }
++            .background(MaterialTheme.colorScheme.surface)
++            .padding(8.dp)
++    )
++}
+diff --git a/app/src/main/java/com/respondent/pro/viewmodel/SettingsViewModel.kt b/app/src/main/java/com/respondent/pro/viewmodel/SettingsViewModel.kt
+index d4e3fa6..c992520 100644
+--- a/app/src/main/java/com/respondent/pro/viewmodel/SettingsViewModel.kt
++++ b/app/src/main/java/com/respondent/pro/viewmodel/SettingsViewModel.kt
+@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
+ import com.respondent.pro.data.remote.TelegramApi
+ import com.respondent.pro.data.repository.AppSettings
+ import com.respondent.pro.data.repository.SettingsRepository
++import com.respondent.pro.kiosk.KioskManager
++import com.respondent.pro.kiosk.KioskStatus
+ import dagger.hilt.android.lifecycle.HiltViewModel
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.StateFlow
+@@ -15,9 +17,13 @@ import javax.inject.Inject
+ @HiltViewModel
+ class SettingsViewModel @Inject constructor(
+     private val settingsRepository: SettingsRepository,
+-    private val telegramApi: TelegramApi
++    private val telegramApi: TelegramApi,
++    private val kioskManager: KioskManager
+ ) : ViewModel() {
+ 
++    /** KioskManager тАФ ╨┤╨╗╤П excursion-╨▓╤Л╤Е╨╛╨┤╨░ ╨▓ ╤Б╨╕╤Б╤В╨╡╨╝╨╜╤Л╨╡ ╨╜╨░╤Б╤В╤А╨╛╨╣╨║╨╕. */
++    val kiosk: KioskManager get() = kioskManager
++
+     private val _settings = MutableStateFlow(AppSettings())
+     val settings: StateFlow<AppSettings> = _settings
+ 
+@@ -25,6 +31,14 @@ class SettingsViewModel @Inject constructor(
+     private val _chatIdResult = MutableStateFlow<ChatIdResult?>(null)
+     val chatIdResult: StateFlow<ChatIdResult?> = _chatIdResult
+ 
++    /** ╨б╤В╨░╤В╤Г╤Б ╨╕╨╜╤Д╨╛╨║╨╕╨╛╤Б╨║╨░ тАФ ╨╛╨▒╨╜╨╛╨▓╨╗╤П╨╡╤В╤Б╤П ╨┐╤А╨╕ ╨║╨░╨╢╨┤╨╛╨╝ ╨╛╤В╨║╤А╤Л╤В╨╕╨╕ ╤Н╨║╤А╨░╨╜╨░ ╨╜╨░╤Б╤В╤А╨╛╨╡╨║ */
++    private val _kioskStatus = MutableStateFlow<KioskStatus?>(null)
++    val kioskStatus: StateFlow<KioskStatus?> = _kioskStatus
++
++    fun refreshKioskStatus() {
++        _kioskStatus.value = kioskManager.status()
++    }
++
+     /** ╨Ш╨┤╤С╤В ╨╗╨╕ ╨╖╨░╨┐╤А╨╛╤Б Chat ID */
+     private val _isDetectingChatId = MutableStateFlow(false)
+     val isDetectingChatId: StateFlow<Boolean> = _isDetectingChatId
+diff --git a/app/src/main/res/xml/device_admin.xml b/app/src/main/res/xml/device_admin.xml
+new file mode 100644
+index 0000000..2892830
+--- /dev/null
++++ b/app/src/main/res/xml/device_admin.xml
+@@ -0,0 +1,12 @@
++<?xml version="1.0" encoding="utf-8"?>
++<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
++    <uses-policies>
++        <limit-password />
++        <watch-login />
++        <reset-password />
++        <force-lock />
++        <wipe-data />
++        <expire-password />
++        <encrypted-storage />
++    </uses-policies>
++</device-admin>
+diff --git a/app/src/main/res/xml/file_paths.xml b/app/src/main/res/xml/file_paths.xml
+new file mode 100644
+index 0000000..d10b37d
+--- /dev/null
++++ b/app/src/main/res/xml/file_paths.xml
+@@ -0,0 +1,4 @@
++<?xml version="1.0" encoding="utf-8"?>
++<paths>
++    <cache-path name="qr_cache" path="." />
++</paths>
+diff --git a/app/src/test/java/com/respondent/pro/kiosk/KioskPolicyTest.kt b/app/src/test/java/com/respondent/pro/kiosk/KioskPolicyTest.kt
+new file mode 100644
+index 0000000..35a2cb5
+--- /dev/null
++++ b/app/src/test/java/com/respondent/pro/kiosk/KioskPolicyTest.kt
+@@ -0,0 +1,43 @@
++package com.respondent.pro.kiosk
++
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertTrue
++import org.junit.Test
++
++class KioskPolicyTest {
++
++    private val pkg = "com.respondent.pro"
++
++    @Test
++    fun `no device owner тАФ no actions`() {
++        assertTrue(KioskPolicy.actions(isDeviceOwner = false, pkg = pkg).isEmpty())
++    }
++
++    @Test
++    fun `with device owner тАФ full lockdown set`() {
++        val actions = KioskPolicy.actions(isDeviceOwner = true, pkg = pkg)
++        assertTrue(actions.contains(PolicyAction.HideStatusBar))
++        assertTrue(actions.contains(PolicyAction.DisableKeyguard))
++        assertTrue(actions.contains(PolicyAction.BlockFactoryReset))
++        assertTrue(actions.contains(PolicyAction.BlockSafeBoot))
++        assertTrue(actions.contains(PolicyAction.MaxScreenTime))
++        assertTrue(actions.contains(PolicyAction.ProtectApp(pkg)))
++        assertTrue(actions.contains(PolicyAction.WhitelistLockTask(pkg)))
++    }
++
++    @Test
++    fun `restart when backgrounded without excursion`() {
++        assertTrue(RestartPolicy.shouldRestart(isForeground = false, excursionActive = false))
++    }
++
++    @Test
++    fun `no restart when foreground`() {
++        assertFalse(RestartPolicy.shouldRestart(isForeground = true, excursionActive = false))
++    }
++
++    @Test
++    fun `no restart during settings excursion`() {
++        // Review Focus тДЦ2: watchdog ╨╜╨╡ ╨┤╨╛╨╗╨╢╨╡╨╜ ╨▓╤Л╤В╨░╤Б╨║╨╕╨▓╨░╤В╤М ╨╕╨╖ ╤Б╨╕╤Б╤В╨╡╨╝╨╜╤Л╤Е ╨╜╨░╤Б╤В╤А╨╛╨╡╨║
++        assertFalse(RestartPolicy.shouldRestart(isForeground = false, excursionActive = true))
++    }
++}
+diff --git a/app/src/test/java/com/respondent/pro/kiosk/ProvisioningQrEncodeTest.kt b/app/src/test/java/com/respondent/pro/kiosk/ProvisioningQrEncodeTest.kt
+new file mode 100644
+index 0000000..84448cb
+--- /dev/null
++++ b/app/src/test/java/com/respondent/pro/kiosk/ProvisioningQrEncodeTest.kt
+@@ -0,0 +1,30 @@
++package com.respondent.pro.kiosk
++
++import android.app.Application
++import org.junit.Assert.assertNotNull
++import org.junit.Assert.assertTrue
++import org.junit.Test
++import org.junit.runner.RunWith
++import org.robolectric.RobolectricTestRunner
++import org.robolectric.annotation.Config
++
++/**
++ * ╨б╨╝╨╛╤Г╨║-╨┐╤А╨╛╨▓╨╡╤А╨║╨░ R7: payload ╤Б╨╛╨▒╨╕╤А╨░╨╡╤В╤Б╤П ╨╕ ╨║╨╛╨┤╨╕╤А╤Г╨╡╤В╤Б╤П ╨▓ QR-╨╕╨╖╨╛╨▒╤А╨░╨╢╨╡╨╜╨╕╨╡.
++ * Robolectric ╨╛╨▒╤П╨╖╨░╤В╨╡╨╗╨╡╨╜ тАФ encodeQr ╨╕╤Б╨┐╨╛╨╗╤М╨╖╤Г╨╡╤В android.graphics.Bitmap.
++ */
++@RunWith(RobolectricTestRunner::class)
++@Config(sdk = [29], application = Application::class)
++class ProvisioningQrEncodeTest {
++
++    private val url = "https://example.com/releases/latest/download/RESPONDENT.PRO.apk"
++
++    @Test
++    fun `encodeQr returns non-null bitmap for built payload`() {
++        val payload = ProvisioningQr.buildPayload(url, "MyNet", "secret1")
++        val bitmap = ProvisioningQr.encodeQr(payload)
++        assertNotNull("encodeQr must return a non-null bitmap", bitmap)
++        val bmp = bitmap!!
++        assertTrue(bmp.width > 0)
++        assertTrue(bmp.height > 0)
++    }
++}
+diff --git a/app/src/test/java/com/respondent/pro/kiosk/ProvisioningQrTest.kt b/app/src/test/java/com/respondent/pro/kiosk/ProvisioningQrTest.kt
+new file mode 100644
+index 0000000..cba9fdf
+--- /dev/null
++++ b/app/src/test/java/com/respondent/pro/kiosk/ProvisioningQrTest.kt
+@@ -0,0 +1,53 @@
++package com.respondent.pro.kiosk
++
++import com.google.gson.JsonParser
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertTrue
++import org.junit.Test
++
++class ProvisioningQrTest {
++
++    private val url = "https://example.com/releases/latest/download/RESPONDENT.PRO.apk"
++
++    @Test
++    fun `payload contains admin component, download url and skip encryption`() {
++        val json = JsonParser.parseString(ProvisioningQr.buildPayload(url, null, null)).asJsonObject
++        assertEquals(
++            "com.respondent.pro/.kiosk.KioskAdminReceiver",
++            json["android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME"].asString
++        )
++        assertEquals(url, json["android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION"].asString)
++        assertTrue(json["android.app.extra.PROVISIONING_SKIP_ENCRYPTION"].asBoolean)
++    }
++
++    @Test
++    fun `wifi keys omitted when ssid is null or blank`() {
++        val json = JsonParser.parseString(ProvisioningQr.buildPayload(url, null, "pass")).asJsonObject
++        assertFalse(json.has("android.app.extra.PROVISIONING_WIFI_SSID"))
++        assertFalse(json.has("android.app.extra.PROVISIONING_WIFI_PASSWORD"))
++
++        val jsonBlank = JsonParser.parseString(ProvisioningQr.buildPayload(url, "  ", null)).asJsonObject
++        assertFalse(jsonBlank.has("android.app.extra.PROVISIONING_WIFI_SSID"))
++    }
++
++    @Test
++    fun `wifi keys present when ssid provided`() {
++        val json = JsonParser.parseString(ProvisioningQr.buildPayload(url, "MyNet", "secret1")).asJsonObject
++        assertEquals("MyNet", json["android.app.extra.PROVISIONING_WIFI_SSID"].asString)
++        assertEquals("secret1", json["android.app.extra.PROVISIONING_WIFI_PASSWORD"].asString)
++    }
++
++    @Test
++    fun `password omitted when ssid given but password empty`() {
++        val json = JsonParser.parseString(ProvisioningQr.buildPayload(url, "MyNet", "")).asJsonObject
++        assertEquals("MyNet", json["android.app.extra.PROVISIONING_WIFI_SSID"].asString)
++        assertFalse(json.has("android.app.extra.PROVISIONING_WIFI_PASSWORD"))
++    }
++
++    @Test
++    fun `payload is valid json object`() {
++        val parsed = JsonParser.parseString(ProvisioningQr.buildPayload(url, "Net", "pw"))
++        assertTrue(parsed.isJsonObject)
++    }
++}
+diff --git a/app/src/test/java/com/respondent/pro/kiosk/WatchdogSchedulerTest.kt b/app/src/test/java/com/respondent/pro/kiosk/WatchdogSchedulerTest.kt
+new file mode 100644
+index 0000000..7b6e282
+--- /dev/null
++++ b/app/src/test/java/com/respondent/pro/kiosk/WatchdogSchedulerTest.kt
+@@ -0,0 +1,26 @@
++package com.respondent.pro.kiosk
++
++import org.junit.Assert.assertEquals
++import org.junit.Test
++
++class WatchdogSchedulerTest {
++
++    @Test
++    fun `exact alarm allowed before android 12`() {
++        assertEquals(WatchdogScheduler.AlarmMode.EXACT, WatchdogScheduler.decide(sdkInt = 29, canScheduleExact = false))
++        assertEquals(WatchdogScheduler.AlarmMode.EXACT, WatchdogScheduler.decide(sdkInt = 30, canScheduleExact = false))
++    }
++
++    @Test
++    fun `exact alarm used when permitted on android 12+`() {
++        assertEquals(WatchdogScheduler.AlarmMode.EXACT, WatchdogScheduler.decide(sdkInt = 31, canScheduleExact = true))
++        assertEquals(WatchdogScheduler.AlarmMode.EXACT, WatchdogScheduler.decide(sdkInt = 35, canScheduleExact = true))
++    }
++
++    @Test
++    fun `inexact fallback when exact alarm not permitted on android 12+`() {
++        // Review Focus тДЦ3
++        assertEquals(WatchdogScheduler.AlarmMode.INEXACT, WatchdogScheduler.decide(sdkInt = 31, canScheduleExact = false))
++        assertEquals(WatchdogScheduler.AlarmMode.INEXACT, WatchdogScheduler.decide(sdkInt = 35, canScheduleExact = false))
++    }
++}
+diff --git a/app/src/test/java/com/respondent/pro/ui/i18n/KioskStringsTest.kt b/app/src/test/java/com/respondent/pro/ui/i18n/KioskStringsTest.kt
+new file mode 100644
+index 0000000..46c9038
+--- /dev/null
++++ b/app/src/test/java/com/respondent/pro/ui/i18n/KioskStringsTest.kt
+@@ -0,0 +1,24 @@
++package com.respondent.pro.ui.i18n
++
++import org.junit.Assert.assertTrue
++import org.junit.Test
++
++class KioskStringsTest {
++
++    private fun kioskValues(s: AppStrings) = listOf(
++        s.kioskTitle, s.kioskStatusOwner, s.kioskStatusLock, s.kioskStatusNoOwner,
++        s.kioskAdbSpoiler, s.kioskAdbSteps, s.kioskCmdHint,
++        s.kioskQrSpoiler, s.kioskQrSteps, s.kioskQrSsidLabel,
++        s.kioskQrPasswordLabel, s.kioskQrShowButton, s.kioskQrShareButton
++    )
++
++    @Test
++    fun `kiosk strings are present and non-blank in ru`() {
++        assertTrue(kioskValues(ruStrings).all { it.isNotBlank() })
++    }
++
++    @Test
++    fun `kiosk strings are present and non-blank in en`() {
++        assertTrue(kioskValues(enStrings).all { it.isNotBlank() })
++    }
++}
