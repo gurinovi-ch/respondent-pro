@@ -31,6 +31,9 @@ fun NavGraph() {
 
     // Shared reset function
     val onAutoReset: () -> Unit = {
+        // Таймерный сброс на главный: подтягиваем актуальные параметры устройства,
+        // best-effort — не влияет на сам сброс (спека §6, ревизия 05.10)
+        feedbackViewModel.refreshDeviceParams()
         // Не сохраняем «неполный» отзыв, если отправка уже идёт —
         // полный отзыв и так будет отправлен, дубля не должно быть
         if (settings.sendIncomplete && !commentViewModel.isSending.value) {

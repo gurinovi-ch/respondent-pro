@@ -30,6 +30,13 @@ class FeedbackViewModel @Inject constructor(
 
     private val deviceParamsSync = DeviceParamsSync(cabinetApi, bindingStorage, settingsRepository::applyDeviceParams)
 
+    /** Повторный fetch параметров устройства — вызывается при таймерном сбросе на главный. */
+    fun refreshDeviceParams() {
+        viewModelScope.launch {
+            deviceParamsSync.fetchAndApply()
+        }
+    }
+
     private val _rating = MutableStateFlow(0)
     val rating: StateFlow<Int> = _rating
 
