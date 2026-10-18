@@ -89,6 +89,8 @@ fun SettingsScreen(
     val qrDiagnostics by viewModel.qrDiagnostics.collectAsState()
     val isRunningQrDiagnostics by viewModel.isRunningQrDiagnostics.collectAsState()
     val cabinetState by viewModel.cabinetState.collectAsState()
+    // Привязан к кабинету — поля интерфейса настраиваются там, здесь скрыты
+    val bound = cabinetState is CabinetState.Bound
     LaunchedEffect(Unit) { viewModel.refreshKioskStatus() }
 
     // В настройках возвращаем навигационную панель: её кнопка-шеврон скрывает
@@ -234,339 +236,348 @@ fun SettingsScreen(
                 }
             }
 
-            // 2. PIN-код
-            OutlinedTextField(
-                value = localSettings.pinCode,
-                onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) localSettings = localSettings.copy(pinCode = it) },
-                label = { Text(strings.pinLabel) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
-            )
-
-            // 3. Название организации
-            OutlinedTextField(
-                value = localSettings.orgName,
-                onValueChange = { localSettings = localSettings.copy(orgName = it) },
-                label = { Text(strings.orgNameLabel) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
-            // 4. Приветствие
-            OutlinedTextField(
-                value = localSettings.greeting,
-                onValueChange = { localSettings = localSettings.copy(greeting = it) },
-                label = { Text(strings.greetingLabel) },
-                modifier = Modifier.fillMaxWidth(),
-                maxLines = 2
-            )
-
-            // 5. Обращение к клиенту
-            OutlinedTextField(
-                value = localSettings.callToAction,
-                onValueChange = { localSettings = localSettings.copy(callToAction = it) },
-                label = { Text(strings.callToActionLabel) },
-                modifier = Modifier.fillMaxWidth(),
-                maxLines = 2
-            )
-
-            // 6. Текст перед полем отзыва
-            OutlinedTextField(
-                value = localSettings.commentHint,
-                onValueChange = { localSettings = localSettings.copy(commentHint = it) },
-                label = { Text(strings.commentHintLabel) },
-                modifier = Modifier.fillMaxWidth(),
-                maxLines = 2
-            )
-
-            // 7. Текст благодарности
-            OutlinedTextField(
-                value = localSettings.thankYouText,
-                onValueChange = { localSettings = localSettings.copy(thankYouText = it) },
-                label = { Text(strings.thankYouLabel) },
-                modifier = Modifier.fillMaxWidth(),
-                maxLines = 2
-            )
-
-            // 8. Таймер сброса
-            OutlinedTextField(
-                value = localSettings.resetTimeout.toString(),
-                onValueChange = { value ->
-                    value.toIntOrNull()?.let { timeout ->
-                        localSettings = localSettings.copy(resetTimeout = timeout)
-                    }
-                },
-                label = { Text(strings.resetTimeoutLabel) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-            )
-
-            // 9. Отправлять незавершённый отзыв
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(strings.sendIncompleteLabel)
-                Switch(
-                    checked = localSettings.sendIncomplete,
-                    onCheckedChange = { localSettings = localSettings.copy(sendIncomplete = it) }
+            // 2-12: поля интерфейса правит Личный кабинет — скрываем при привязке
+            if (bound) {
+                Text(
+                    text = strings.boundSettingsHint,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            }
+            } else {
+                // 2. PIN-код
+                OutlinedTextField(
+                    value = localSettings.pinCode,
+                    onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) localSettings = localSettings.copy(pinCode = it) },
+                    label = { Text(strings.pinLabel) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                )
 
-            // 10. Способ отправки — выделенный блок внизу
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                ),
-                border = CardDefaults.outlinedCardBorder(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                // 3. Название организации
+                OutlinedTextField(
+                    value = localSettings.orgName,
+                    onValueChange = { localSettings = localSettings.copy(orgName = it) },
+                    label = { Text(strings.orgNameLabel) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                // 4. Приветствие
+                OutlinedTextField(
+                    value = localSettings.greeting,
+                    onValueChange = { localSettings = localSettings.copy(greeting = it) },
+                    label = { Text(strings.greetingLabel) },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 2
+                )
+
+                // 5. Обращение к клиенту
+                OutlinedTextField(
+                    value = localSettings.callToAction,
+                    onValueChange = { localSettings = localSettings.copy(callToAction = it) },
+                    label = { Text(strings.callToActionLabel) },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 2
+                )
+
+                // 6. Текст перед полем отзыва
+                OutlinedTextField(
+                    value = localSettings.commentHint,
+                    onValueChange = { localSettings = localSettings.copy(commentHint = it) },
+                    label = { Text(strings.commentHintLabel) },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 2
+                )
+
+                // 7. Текст благодарности
+                OutlinedTextField(
+                    value = localSettings.thankYouText,
+                    onValueChange = { localSettings = localSettings.copy(thankYouText = it) },
+                    label = { Text(strings.thankYouLabel) },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 2
+                )
+
+                // 8. Таймер сброса
+                OutlinedTextField(
+                    value = localSettings.resetTimeout.toString(),
+                    onValueChange = { value ->
+                        value.toIntOrNull()?.let { timeout ->
+                            localSettings = localSettings.copy(resetTimeout = timeout)
+                        }
+                    },
+                    label = { Text(strings.resetTimeoutLabel) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+
+                // 9. Отправлять незавершённый отзыв
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = strings.sendMethodLabel,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Text(strings.sendIncompleteLabel)
+                    Switch(
+                        checked = localSettings.sendIncomplete,
+                        onCheckedChange = { localSettings = localSettings.copy(sendIncomplete = it) }
                     )
+                }
 
-                    // Выбор способа отправки
-                    ExposedDropdownMenuBox(
-                        expanded = sendMethodExpanded,
-                        onExpandedChange = { sendMethodExpanded = it }
+                // 10. Способ отправки — выделенный блок внизу
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    ),
+                    border = CardDefaults.outlinedCardBorder(),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        OutlinedTextField(
-                            value = if (localSettings.sendMethod == "email") strings.sendMethodEmail else strings.sendMethodTelegram,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text(strings.sendMethodLabel) },
-                            trailingIcon = {
-                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = sendMethodExpanded)
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor()
-                        )
-                        ExposedDropdownMenu(
-                            expanded = sendMethodExpanded,
-                            onDismissRequest = { sendMethodExpanded = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text(strings.sendMethodTelegram) },
-                                onClick = {
-                                    sendMethodExpanded = false
-                                    localSettings = localSettings.copy(sendMethod = "telegram")
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(strings.sendMethodEmail) },
-                                onClick = {
-                                    sendMethodExpanded = false
-                                    localSettings = localSettings.copy(sendMethod = "email")
-                                }
-                            )
-                        }
-                    }
-
-                    // Поля в зависимости от способа отправки
-                    if (localSettings.sendMethod == "telegram") {
-                        // Telegram: токен
-                        OutlinedTextField(
-                            value = localSettings.telegramToken,
-                            onValueChange = {
-                                localSettings = localSettings.copy(telegramToken = it)
-                                viewModel.clearChatIdResult()
-                            },
-                            label = { Text(strings.telegramTokenLabel) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
+                        Text(
+                            text = strings.sendMethodLabel,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
-                        // Кнопка определения Chat ID
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OutlinedButton(
-                                onClick = { viewModel.detectChatId(localSettings.telegramToken) },
-                                enabled = !isDetectingChatId && localSettings.telegramToken.isNotBlank(),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text(if (isDetectingChatId) strings.detectingChatId else strings.detectChatIdBtn)
-                            }
-                        }
-
-                        // Результат определения Chat ID
-                        when (val result = chatIdResult) {
-                            is ChatIdResult.Success -> {
-                                Text(
-                                    text = strings.chatIdDetected.format(result.chatId),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                            is ChatIdResult.NoMessages -> {
-                                Text(
-                                    text = strings.chatIdNoMessages,
-                                    color = MaterialTheme.colorScheme.error,
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                            is ChatIdResult.Error -> {
-                                Text(
-                                    text = strings.chatIdError.format(result.message),
-                                    color = MaterialTheme.colorScheme.error,
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                            null -> {}
-                        }
-
-                        // Chat ID (ручной ввод)
-                        OutlinedTextField(
-                            value = localSettings.telegramChatId,
-                            onValueChange = { localSettings = localSettings.copy(telegramChatId = it) },
-                            label = { Text(strings.chatIdLabel) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                        )
-                    } else {
-                        // Email: пресет SMTP
+                        // Выбор способа отправки
                         ExposedDropdownMenuBox(
-                            expanded = emailPresetExpanded,
-                            onExpandedChange = { emailPresetExpanded = it }
+                            expanded = sendMethodExpanded,
+                            onExpandedChange = { sendMethodExpanded = it }
                         ) {
                             OutlinedTextField(
-                                value = when (localSettings.emailPreset) {
-                                    "gmail" -> strings.emailPresetGmail
-                                    "yandex" -> strings.emailPresetYandex
-                                    else -> strings.emailPresetCustom
-                                },
+                                value = if (localSettings.sendMethod == "email") strings.sendMethodEmail else strings.sendMethodTelegram,
                                 onValueChange = {},
                                 readOnly = true,
-                                label = { Text(strings.emailPresetLabel) },
+                                label = { Text(strings.sendMethodLabel) },
                                 trailingIcon = {
-                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = emailPresetExpanded)
+                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = sendMethodExpanded)
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .menuAnchor()
                             )
                             ExposedDropdownMenu(
-                                expanded = emailPresetExpanded,
-                                onDismissRequest = { emailPresetExpanded = false }
+                                expanded = sendMethodExpanded,
+                                onDismissRequest = { sendMethodExpanded = false }
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text(strings.emailPresetGmail) },
+                                    text = { Text(strings.sendMethodTelegram) },
                                     onClick = {
-                                        emailPresetExpanded = false
-                                        localSettings = localSettings.copy(emailPreset = "gmail", smtpPort = 587, smtpSsl = false)
+                                        sendMethodExpanded = false
+                                        localSettings = localSettings.copy(sendMethod = "telegram")
                                     }
                                 )
                                 DropdownMenuItem(
-                                    text = { Text(strings.emailPresetYandex) },
+                                    text = { Text(strings.sendMethodEmail) },
                                     onClick = {
-                                        emailPresetExpanded = false
-                                        localSettings = localSettings.copy(emailPreset = "yandex", smtpPort = 465, smtpSsl = true)
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(strings.emailPresetCustom) },
-                                    onClick = {
-                                        emailPresetExpanded = false
-                                        localSettings = localSettings.copy(emailPreset = "custom")
+                                        sendMethodExpanded = false
+                                        localSettings = localSettings.copy(sendMethod = "email")
                                     }
                                 )
                             }
                         }
 
-                        // Email отправителя
-                        OutlinedTextField(
-                            value = localSettings.emailFrom,
-                            onValueChange = { localSettings = localSettings.copy(emailFrom = it) },
-                            label = { Text(strings.emailFromLabel) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
-                        )
-
-                        // Пароль приложения
-                        OutlinedTextField(
-                            value = localSettings.emailPassword,
-                            onValueChange = { localSettings = localSettings.copy(emailPassword = it) },
-                            label = { Text(strings.emailPasswordLabel) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-
-                        // Email получателя
-                        OutlinedTextField(
-                            value = localSettings.emailTo,
-                            onValueChange = { localSettings = localSettings.copy(emailTo = it) },
-                            label = { Text(strings.emailToLabel) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
-                        )
-
-                        // SMTP хост/порт — только для ручного ввода
-                        if (localSettings.emailPreset == "custom") {
+                        // Поля в зависимости от способа отправки
+                        if (localSettings.sendMethod == "telegram") {
+                            // Telegram: токен
                             OutlinedTextField(
-                                value = localSettings.smtpHost,
-                                onValueChange = { localSettings = localSettings.copy(smtpHost = it) },
-                                label = { Text(strings.smtpHostLabel) },
+                                value = localSettings.telegramToken,
+                                onValueChange = {
+                                    localSettings = localSettings.copy(telegramToken = it)
+                                    viewModel.clearChatIdResult()
+                                },
+                                label = { Text(strings.telegramTokenLabel) },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true
                             )
 
+                            // Кнопка определения Chat ID
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedButton(
+                                    onClick = { viewModel.detectChatId(localSettings.telegramToken) },
+                                    enabled = !isDetectingChatId && localSettings.telegramToken.isNotBlank(),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(if (isDetectingChatId) strings.detectingChatId else strings.detectChatIdBtn)
+                                }
+                            }
+
+                            // Результат определения Chat ID
+                            when (val result = chatIdResult) {
+                                is ChatIdResult.Success -> {
+                                    Text(
+                                        text = strings.chatIdDetected.format(result.chatId),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                                is ChatIdResult.NoMessages -> {
+                                    Text(
+                                        text = strings.chatIdNoMessages,
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                                is ChatIdResult.Error -> {
+                                    Text(
+                                        text = strings.chatIdError.format(result.message),
+                                        color = MaterialTheme.colorScheme.error,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                                null -> {}
+                            }
+
+                            // Chat ID (ручной ввод)
+                            OutlinedTextField(
+                                value = localSettings.telegramChatId,
+                                onValueChange = { localSettings = localSettings.copy(telegramChatId = it) },
+                                label = { Text(strings.chatIdLabel) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                            )
+                        } else {
+                            // Email: пресет SMTP
+                            ExposedDropdownMenuBox(
+                                expanded = emailPresetExpanded,
+                                onExpandedChange = { emailPresetExpanded = it }
                             ) {
                                 OutlinedTextField(
-                                    value = localSettings.smtpPort.toString(),
-                                    onValueChange = { value ->
-                                        value.toIntOrNull()?.let { port ->
-                                            localSettings = localSettings.copy(smtpPort = port)
-                                        }
+                                    value = when (localSettings.emailPreset) {
+                                        "gmail" -> strings.emailPresetGmail
+                                        "yandex" -> strings.emailPresetYandex
+                                        else -> strings.emailPresetCustom
                                     },
-                                    label = { Text(strings.smtpPortLabel) },
-                                    modifier = Modifier.weight(1f),
-                                    singleLine = true,
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text(strings.emailPresetLabel) },
+                                    trailingIcon = {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = emailPresetExpanded)
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .menuAnchor()
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = emailPresetExpanded,
+                                    onDismissRequest = { emailPresetExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text(strings.emailPresetGmail) },
+                                        onClick = {
+                                            emailPresetExpanded = false
+                                            localSettings = localSettings.copy(emailPreset = "gmail", smtpPort = 587, smtpSsl = false)
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(strings.emailPresetYandex) },
+                                        onClick = {
+                                            emailPresetExpanded = false
+                                            localSettings = localSettings.copy(emailPreset = "yandex", smtpPort = 465, smtpSsl = true)
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(strings.emailPresetCustom) },
+                                        onClick = {
+                                            emailPresetExpanded = false
+                                            localSettings = localSettings.copy(emailPreset = "custom")
+                                        }
+                                    )
+                                }
+                            }
+
+                            // Email отправителя
+                            OutlinedTextField(
+                                value = localSettings.emailFrom,
+                                onValueChange = { localSettings = localSettings.copy(emailFrom = it) },
+                                label = { Text(strings.emailFromLabel) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                            )
+
+                            // Пароль приложения
+                            OutlinedTextField(
+                                value = localSettings.emailPassword,
+                                onValueChange = { localSettings = localSettings.copy(emailPassword = it) },
+                                label = { Text(strings.emailPasswordLabel) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+
+                            // Email получателя
+                            OutlinedTextField(
+                                value = localSettings.emailTo,
+                                onValueChange = { localSettings = localSettings.copy(emailTo = it) },
+                                label = { Text(strings.emailToLabel) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                            )
+
+                            // SMTP хост/порт — только для ручного ввода
+                            if (localSettings.emailPreset == "custom") {
+                                OutlinedTextField(
+                                    value = localSettings.smtpHost,
+                                    onValueChange = { localSettings = localSettings.copy(smtpHost = it) },
+                                    label = { Text(strings.smtpHostLabel) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
                                 )
 
                                 Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(top = 16.dp)
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Checkbox(
-                                        checked = localSettings.smtpSsl,
-                                        onCheckedChange = { localSettings = localSettings.copy(smtpSsl = it) }
+                                    OutlinedTextField(
+                                        value = localSettings.smtpPort.toString(),
+                                        onValueChange = { value ->
+                                            value.toIntOrNull()?.let { port ->
+                                                localSettings = localSettings.copy(smtpPort = port)
+                                            }
+                                        },
+                                        label = { Text(strings.smtpPortLabel) },
+                                        modifier = Modifier.weight(1f),
+                                        singleLine = true,
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                                     )
-                                    Text(strings.smtpSslLabel)
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(top = 16.dp)
+                                    ) {
+                                        Checkbox(
+                                            checked = localSettings.smtpSsl,
+                                            onCheckedChange = { localSettings = localSettings.copy(smtpSsl = it) }
+                                        )
+                                        Text(strings.smtpSslLabel)
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            // 12. Инструкции — спойлер
-            InstructionsSpoiler(
-                expanded = instructionsExpanded,
-                onToggle = { instructionsExpanded = !instructionsExpanded },
-                sendMethod = localSettings.sendMethod
-            )
+                // 12. Инструкции — спойлер
+                InstructionsSpoiler(
+                    expanded = instructionsExpanded,
+                    onToggle = { instructionsExpanded = !instructionsExpanded },
+                    sendMethod = localSettings.sendMethod
+                )
+            }
 
             // 13. Инфокиоск — статус и инструкции
             KioskCard(

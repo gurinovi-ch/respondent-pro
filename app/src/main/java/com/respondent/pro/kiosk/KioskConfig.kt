@@ -28,6 +28,8 @@ object KioskConfig {
         "adb install -r RESPONDENT.PRO.apk",
         "adb shell dpm set-device-owner com.respondent.pro/.kiosk.KioskAdminReceiver",
         "adb shell cmd package set-home-activity com.respondent.pro/.MainActivity",
-        "adb shell appops set com.respondent.pro SYSTEM_ALERT_WINDOW allow"
+        "adb shell appops set com.respondent.pro SYSTEM_ALERT_WINDOW allow",
+        // Разовая выдача доступа листенеру — блокировка всех уведомлений
+        "adb shell cmd notification allow_listener com.respondent.pro/com.respondent.pro.notifications.NotificationBlockingListener"
     )
 }

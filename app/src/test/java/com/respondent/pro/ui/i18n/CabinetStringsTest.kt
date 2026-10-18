@@ -10,7 +10,8 @@ class CabinetStringsTest {
         s.kabinetCardTitle, s.kabinetStatusUnbound, s.kabinetStatusBound,
         s.kabinetStatusBoundPoint, s.kabinetCodeLabel, s.kabinetBindButton,
         s.kabinetBinding, s.kabinetUnbindButton, s.kabinetHint,
-        s.kabinetErrorInvalid, s.kabinetErrorNetwork, s.kabinetRevoked
+        s.kabinetErrorInvalid, s.kabinetErrorNetwork, s.kabinetRevoked,
+        s.boundSettingsHint
     )
 
     @Test

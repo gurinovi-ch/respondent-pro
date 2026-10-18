@@ -6,6 +6,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.os.Build
 import android.os.UserManager
+import android.provider.Settings
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -91,9 +92,31 @@ class KioskManager @Inject constructor(
         }
     }
 
+    /**
+     * Яркость окна приложения не ниже 80% (применяется всегда, без DO).
+     *
+     * Считываем системную яркость (только чтение, разрешение не нужно) и
+     * выставляем яркость ОКНА — системная настройка не меняется, поэтому
+     * при выходе из приложения действует то, что в настройках Android.
+     * Возврат из excursion в системные настройки перечитывает её заново.
+     */
+    fun applyScreenBrightness(activity: Activity) {
+        val systemFraction = Settings.System.getInt(
+            context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 0
+        ) / 255f
+        val target = KioskPolicy.windowBrightness(systemFraction)
+        val attrs = activity.window.attributes
+        if (attrs.screenBrightness != target) {
+            attrs.screenBrightness = target
+            activity.window.attributes = attrs
+            Log.i(TAG, "window brightness: system=$systemFraction -> $target")
+        }
+    }
+
     fun onActivityResumed(activity: Activity) {
         isForeground = true
         excursionActive = false
+        applyScreenBrightness(activity)
         startLockTask(activity)
     }
 

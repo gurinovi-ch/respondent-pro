@@ -1,5 +1,6 @@
 package com.respondent.pro.kiosk
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -23,6 +24,31 @@ class KioskPolicyTest {
         assertTrue(actions.contains(PolicyAction.MaxScreenTime))
         assertTrue(actions.contains(PolicyAction.ProtectApp(pkg)))
         assertTrue(actions.contains(PolicyAction.WhitelistLockTask(pkg)))
+    }
+
+    @Test
+    fun `window brightness — system above minimum is kept`() {
+        // Android 90% → окно 90%
+        assertEquals(0.9f, KioskPolicy.windowBrightness(0.9f), 0.0001f)
+    }
+
+    @Test
+    fun `window brightness — system below minimum is raised to 80`() {
+        // Android 50% → окно 80%
+        assertEquals(0.8f, KioskPolicy.windowBrightness(0.5f), 0.0001f)
+        assertEquals(0.8f, KioskPolicy.windowBrightness(0f), 0.0001f)
+    }
+
+    @Test
+    fun `window brightness — system exactly at minimum stays`() {
+        assertEquals(0.8f, KioskPolicy.windowBrightness(0.8f), 0.0001f)
+    }
+
+    @Test
+    fun `keyguard disabled on wake — DisableKeyguard in actions`() {
+        // Требование: блокировка экрана при выходе из сна отключена
+        val actions = KioskPolicy.actions(isDeviceOwner = true, pkg = pkg)
+        assertTrue(actions.contains(PolicyAction.DisableKeyguard))
     }
 
     @Test
