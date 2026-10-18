@@ -5,6 +5,8 @@ import com.respondent.pro.cabinet.CabinetApi
 import com.respondent.pro.cabinet.DeviceParamsResponse
 import com.respondent.pro.cabinet.FeedbackAck
 import com.respondent.pro.cabinet.FeedbackPayload
+import com.respondent.pro.cabinet.LocationAck
+import com.respondent.pro.cabinet.LocationPayload
 import com.respondent.pro.cabinet.PairRequest
 import com.respondent.pro.cabinet.PairResponse
 import com.respondent.pro.cabinet.StoredBinding
@@ -68,6 +70,7 @@ class CabinetChannelTest {
         override suspend fun pair(body: PairRequest): PairResponse = throw NotImplementedError()
         override suspend fun deviceParams(): DeviceParamsResponse = throw NotImplementedError()
         override suspend fun telemetry(body: TelemetryPayload): TelemetryAck = throw NotImplementedError()
+        override suspend fun postLocation(body: LocationPayload): LocationAck = throw NotImplementedError()
     }
 
     private val bound = StoredBinding("rpro_key", "t1", "o1", "ООО", null)

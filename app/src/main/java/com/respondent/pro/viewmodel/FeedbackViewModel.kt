@@ -64,6 +64,7 @@ class FeedbackViewModel @Inject constructor(
             kotlinx.coroutines.delay(5000) // прогрев DataStore/сети
             while (true) {
                 telemetryReporter.send()
+                telemetryReporter.sendLocation()
                 kotlinx.coroutines.delay(120_000L)
             }
         }

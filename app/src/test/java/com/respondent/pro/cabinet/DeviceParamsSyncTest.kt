@@ -31,6 +31,8 @@ class DeviceParamsSyncTest {
         }
         override suspend fun telemetry(body: TelemetryPayload): TelemetryAck =
             throw UnsupportedOperationException("not used")
+        override suspend fun postLocation(body: LocationPayload): LocationAck =
+            throw UnsupportedOperationException("not used")
     }
 
     private val bound = StoredBinding("rpro_k", "t1", "o1", "ООО", "Точка")

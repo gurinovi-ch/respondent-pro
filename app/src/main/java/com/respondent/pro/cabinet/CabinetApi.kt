@@ -20,6 +20,10 @@ interface CabinetApi {
     /** Телеметрия: АКБ/зарядка/сеть. Сервер обновляет lastSeenAt по этому запросу. */
     @POST("tablets/telemetry")
     suspend fun telemetry(@Body body: TelemetryPayload): TelemetryAck
+
+    /** Геолокация планшета — точка на карте в A web. */
+    @POST("tablets/location")
+    suspend fun postLocation(@Body body: LocationPayload): LocationAck
 }
 
 data class PairRequest(val pin: String)
@@ -73,3 +77,8 @@ data class TelemetryPayload(
 )
 
 data class TelemetryAck(val success: Boolean)
+
+/** Тело POST /tablets/location: сервер берёт планшет из API-ключа. */
+data class LocationPayload(val latitude: Double, val longitude: Double)
+
+data class LocationAck(val id: String)

@@ -1,20 +1,40 @@
 package com.respondent.pro.cabinet
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.wifi.WifiManager
 import android.os.BatteryManager
+import android.os.Bundle
+import android.os.Looper
 import android.telephony.TelephonyManager
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
+import com.google.android.gms.common.ConnectionResult
+import com.google.android.gms.common.GoogleApiAvailability
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import retrofit2.HttpException
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.resume
+
+/** Точка геолокации: последний известный фикс одного из провайдеров. */
+data class GeoFix(val latitude: Double, val longitude: Double, val timeMs: Long)
+
+/** Самая свежая точка из набора last-known (GPS/сеть/passive). */
+fun newestFix(fixes: List<GeoFix>): GeoFix? = fixes.maxByOrNull { it.timeMs }
 
 /**
  * Телеметрия планшета для списка «Планшеты» в кабинете:
@@ -76,12 +96,114 @@ class DeviceTelemetryReporter @Inject constructor(
         }
     }
 
+    /** Геолокация: last-known фикс (GPS/сеть/passive) → POST /tablets/location. */
+    suspend fun sendLocation(): Boolean {
+        if (storage.read() == null) {
+            Log.i(TAG, "Not bound — skip location")
+            return false
+        }
+        val fix = lastKnownFix() ?: playServicesFix() ?: requestFix() ?: run {
+            Log.i(TAG, "No location fix")
+            return false
+        }
+        return try {
+            api.postLocation(LocationPayload(fix.latitude, fix.longitude))
+            Log.i(TAG, "Location sent")
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: HttpException) {
+            Log.i(TAG, "Location failed: HTTP ${e.code()}")
+            false
+        } catch (e: IOException) {
+            Log.i(TAG, "Location network error")
+            false
+        } catch (e: Exception) {
+            Log.i(TAG, "Location unexpected error")
+            false
+        }
+    }
+
+    private fun lastKnownFix(): GeoFix? {
+        val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
+        val fixes = listOf(
+            LocationManager.GPS_PROVIDER,
+            "fused", // Google Play fused (если зарегистрирован на устройстве)
+            LocationManager.NETWORK_PROVIDER,
+            LocationManager.PASSIVE_PROVIDER,
+        ).mapNotNull { provider ->
+            try {
+                lm.getLastKnownLocation(provider)?.let { GeoFix(it.latitude, it.longitude, it.time) }
+            } catch (e: SecurityException) {
+                null
+            } catch (e: IllegalArgumentException) {
+                null
+            }
+        }
+        return newestFix(fixes)
+    }
+
+    /** Fused-локатор Google Play: Wi-Fi/сота, работает в помещении (15 с, BALANCED). */
+    @SuppressLint("MissingPermission")
+    private suspend fun playServicesFix(): GeoFix? {
+        if (GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context) != ConnectionResult.SUCCESS) {
+            return null
+        }
+        return try {
+            val client = LocationServices.getFusedLocationProviderClient(context)
+            val token = CancellationTokenSource().token
+            val location = withTimeoutOrNull(15_000) {
+                suspendCancellableCoroutine<Location?> { cont ->
+                    client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, token)
+                        .addOnSuccessListener { if (cont.isActive) cont.resume(it) }
+                        .addOnFailureListener { if (cont.isActive) cont.resume(null) }
+                }
+            }
+            location?.let { GeoFix(it.latitude, it.longitude, it.time) }
+        } catch (e: SecurityException) {
+            null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** Активный одноразовый фикс (15 с): нужен, когда last-known пуст (гео только включили). */
+    @SuppressLint("MissingPermission")
+    private suspend fun requestFix(): GeoFix? {
+        val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
+        val provider = listOf("fused", LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+            .firstOrNull { p ->
+                try { lm.isProviderEnabled(p) } catch (e: Exception) { false }
+            } ?: return null
+        return withTimeoutOrNull(15_000) {
+            suspendCancellableCoroutine { cont ->
+                val listener = object : LocationListener {
+                    override fun onLocationChanged(location: Location) {
+                        if (cont.isActive) {
+                            cont.resume(GeoFix(location.latitude, location.longitude, location.time))
+                        }
+                    }
+                    override fun onProviderEnabled(provider: String) {}
+                    override fun onProviderDisabled(provider: String) {}
+                    @Deprecated("Deprecated in Java")
+                    override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+                }
+                try {
+                    @Suppress("DEPRECATION")
+                    lm.requestSingleUpdate(provider, listener, Looper.getMainLooper())
+                    cont.invokeOnCancellation { lm.removeUpdates(listener) }
+                } catch (e: SecurityException) {
+                    cont.resume(null)
+                }
+            }
+        }
+    }
+
     fun collect(): TelemetryPayload {
         val (battery, charging) = battery()
         val (type, name, cell) = network()
         return TelemetryPayload(battery, charging, type, name, cell)
     }
-
     private fun battery(): Pair<Int?, Boolean> {
         val intent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1

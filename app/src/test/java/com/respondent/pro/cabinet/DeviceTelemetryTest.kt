@@ -8,6 +8,15 @@ import org.junit.Test
 class DeviceTelemetryTest {
 
     @Test
+    fun `newestFix picks latest timestamp`() {
+        val old = GeoFix(55.75, 37.61, 1_000L)
+        val fresh = GeoFix(59.93, 30.31, 2_000L)
+
+        assertEquals(fresh, newestFix(listOf(old, fresh)))
+        assertNull(newestFix(emptyList()))
+    }
+
+    @Test
     fun `cellularType maps android network types`() {
         assertEquals("5G", DeviceTelemetryReporter.cellularType(TelephonyManager.NETWORK_TYPE_NR))
 
