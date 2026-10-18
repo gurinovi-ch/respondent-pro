@@ -5,6 +5,9 @@
     <!-- WiFi-индикатор: registerDefaultNetworkCallback требует это разрешение
          (normal-уровень, выдаётся при установке) -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- SSID для телеметрии: на Android 10+ имя Wi-Fi доступно только с георазрешением -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />

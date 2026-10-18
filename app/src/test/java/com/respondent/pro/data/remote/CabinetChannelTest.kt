@@ -8,6 +8,8 @@ import com.respondent.pro.cabinet.FeedbackPayload
 import com.respondent.pro.cabinet.PairRequest
 import com.respondent.pro.cabinet.PairResponse
 import com.respondent.pro.cabinet.StoredBinding
+import com.respondent.pro.cabinet.TelemetryAck
+import com.respondent.pro.cabinet.TelemetryPayload
 import com.respondent.pro.data.local.FeedbackDao
 import com.respondent.pro.data.model.Feedback
 import kotlinx.coroutines.flow.Flow
@@ -65,6 +67,7 @@ class CabinetChannelTest {
         }
         override suspend fun pair(body: PairRequest): PairResponse = throw NotImplementedError()
         override suspend fun deviceParams(): DeviceParamsResponse = throw NotImplementedError()
+        override suspend fun telemetry(body: TelemetryPayload): TelemetryAck = throw NotImplementedError()
     }
 
     private val bound = StoredBinding("rpro_key", "t1", "o1", "ООО", null)

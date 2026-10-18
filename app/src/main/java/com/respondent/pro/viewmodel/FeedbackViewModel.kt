@@ -11,6 +11,7 @@ import com.respondent.pro.data.repository.AppSettings
 import com.respondent.pro.cabinet.BindingStorage
 import com.respondent.pro.cabinet.CabinetApi
 import com.respondent.pro.cabinet.DeviceParamsSync
+import com.respondent.pro.cabinet.DeviceTelemetryReporter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +27,7 @@ class FeedbackViewModel @Inject constructor(
     private val feedbackSender: FeedbackSender,
     private val cabinetApi: CabinetApi,
     private val bindingStorage: BindingStorage,
+    private val telemetryReporter: DeviceTelemetryReporter,
 ) : ViewModel() {
 
     private val deviceParamsSync = DeviceParamsSync(cabinetApi, bindingStorage, settingsRepository::applyDeviceParams)
@@ -56,6 +58,14 @@ class FeedbackViewModel @Inject constructor(
         // Параметры устройства с сервера: один fetch при старте, best-effort (спека §6)
         viewModelScope.launch {
             deviceParamsSync.fetchAndApply()
+        }
+        // Телеметрия АКБ/сети раз в 2 минуты — питает колонки «АКБ/СЕТЬ/ОНЛАЙН» в кабинете
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(5000) // прогрев DataStore/сети
+            while (true) {
+                telemetryReporter.send()
+                kotlinx.coroutines.delay(120_000L)
+            }
         }
         // Дренаж очереди: досылаем то, что не ушло (C web или Telegram/e-mail
         // — в зависимости от режима). 30 с при непустой очереди, до 5 мин в
