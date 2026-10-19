@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WebView probe</title>
+</head>
+<body style="font-family:sans-serif;padding:16px">
+<h3>WebView probe</h3>
+<textarea id="t" rows="3" style="width:100%;font-size:22px" placeholder="комментарий"></textarea>
+<p id="out">…</p>
+<script>
+  // Диагностика идёт в console -> WebChromeClient.onConsoleMessage -> logcat
+  function out(msg) {
+    var el = document.getElementById('out');
+    if (el) el.textContent = String(msg);
+    console.log('PROBE ' + msg);
+  }
+
+  // Ввод символа как это сделал бы React-совместимый бридж:
+  // нативный сеттер value + input-событие (React видит обычный ввод).
+  function insertText(ch) {
+    var el = document.getElementById('t');
+    var desc = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value');
+    desc.set.call(el, el.value + ch);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    return el.value;
+  }
+
+  window.probeType = function (ch) { return insertText(ch); };
+
+  window.probeBackspace = function () {
+    var el = document.getElementById('t');
+    var desc = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value');
+    desc.set.call(el, el.value.slice(0, -1));
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    return el.value;
+  };
+
+  window.probeSubmit = function () {
+    var body = JSON.stringify({ rating: 5, text: document.getElementById('t').value, clientKey: 'probe-1' });
+    if (window.ProbeBridge && window.ProbeBridge.postFeedback) {
+      window.ProbeBridge.postFeedback(body);
+      out('sent via bridge');
+      return 'bridge';
+    }
+    fetch('feedback.json', { method: 'POST', body: body })
+      .then(function (r) { out('POST ' + r.status); })
+      .catch(function (e) { out('POST failed ' + e); });
+    return 'fetch';
+  };
+
+  window.onBridgeAck = function (ok) { out('bridge ack ' + ok); };
+  window.probeSwState = function () {
+    return navigator.serviceWorker && navigator.serviceWorker.controller ? 'controlled' : 'not-controlled';
+  };
+
+  window.probeIdb = function () {
+    var rq = indexedDB.open('probe', 1);
+    rq.onupgradeneeded = function () { rq.result.createObjectStore('q', { autoIncrement: true }); };
+    rq.onsuccess = function () {
+      var db = rq.result;
+      var tx = db.transaction('q', 'readwrite');
+      tx.objectStore('q').add({ at: Date.now() });
+      tx.oncomplete = function () {
+        var rq2 = db.transaction('q', 'readonly').objectStore('q').count();
+        rq2.onsuccess = function () { out('IDB count=' + rq2.result); };
+      };
+    };
+    rq.onerror = function () { out('IDB error ' + rq.error); };
+  };
+
+  // --- Service Worker и данные, которые он кэширует ---
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js')
+      .then(function (r) { out('SW registered ' + r.scope); })
+      .catch(function (e) { out('SW error ' + e); });
+  } else {
+    out('SW unsupported');
+  }
+
+  fetch('data.json')
+    .then(function (r) { return r.json(); })
+    .then(function (j) { out('data ' + JSON.stringify(j)); })
+    .catch(function (e) { out('data error ' + e); });
+
+  out('loaded');
+</script>
+</body>
+</html>
