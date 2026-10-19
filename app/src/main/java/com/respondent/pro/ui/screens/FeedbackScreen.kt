@@ -28,6 +28,7 @@ import com.respondent.pro.ui.components.cappedLogoWidthPx
 import com.respondent.pro.ui.components.contentGapDp
 import com.respondent.pro.ui.components.ctaFontSizeSp
 import com.respondent.pro.ui.components.logoWidthFraction
+import com.respondent.pro.ui.components.SettingsPinDialog
 import com.respondent.pro.ui.components.StarRating
 import com.respondent.pro.ui.components.SurveyFooter
 import com.respondent.pro.ui.components.SystemIndicators
@@ -213,54 +214,14 @@ fun FeedbackScreen(
                 .onGloballyPositioned { footerHeightPx = it.size.height },
         )
 
-        // PIN dialog
-        if (showPinDialog) {
-            var pinError by remember { mutableStateOf(false) }
-
-            androidx.compose.material3.AlertDialog(
-                onDismissRequest = { viewModel.hidePin(); pinError = false },
-                containerColor = Color.White,
-                shape = RoundedCornerShape(10.dp),
-                title = { Text(strings.pinDialogTitle) },
-                text = {
-                    // Панели системной навигации скрыты и во время показа
-                    // PIN-диалога: окно диалога не наследует immersive-флаги
-                    // главного окна, и система возвращала панели обратно
-                    val dialogView = LocalView.current
-                    SideEffect {
-                        @Suppress("DEPRECATION")
-                        dialogView.rootView.systemUiVisibility =
-                            android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                                android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                                android.view.View.SYSTEM_UI_FLAG_FULLSCREEN or
-                                android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-                                android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                                android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    }
-                    PinInput(
-                        pin = "",
-                        onPinChanged = { pinError = false },
-                        onSubmit = { pin ->
-                            if (viewModel.verifyPin(pin)) {
-                                pinError = false
-                                onSettings()
-                            } else {
-                                pinError = true
-                            }
-                        },
-                        error = pinError,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                },
-                confirmButton = {},
-                dismissButton = {
-                    androidx.compose.material3.TextButton(
-                        onClick = { viewModel.hidePin(); pinError = false }
-                    ) {
-                        Text(strings.btnCancel)
-                    }
-                }
-            )
-        }
+        // PIN dialog (общий с веб-опросом)
+        SettingsPinDialog(
+            open = showPinDialog,
+            title = strings.pinDialogTitle,
+            cancelLabel = strings.btnCancel,
+            verifyPin = viewModel::verifyPin,
+            onSuccess = onSettings,
+            onDismiss = viewModel::hidePin,
+        )
     }
 }

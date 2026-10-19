@@ -21,7 +21,6 @@ import com.respondent.pro.cabinet.KabinetConfig
 
 private const val TAG = "WebSurvey"
 const val BRIDGE_OBJECT = "RespondentBridge"
-
 /** URL опроса для веб-режима; null → планшет остаётся на нативных шагах. */
 fun surveyUrl(surveyPath: String?): String? =
     if (surveyPath.isNullOrBlank()) null else KabinetConfig.ORIGIN + surveyPath
@@ -42,6 +41,7 @@ fun isAllowedSurveyUrl(url: String): Boolean =
 fun WebSurveyScreen(
     surveyPath: String?,
     reloadKey: Int,
+    onWebView: (WebView) -> Unit = {},
     onFeedback: (BridgeIncoming.Feedback) -> Boolean,
     onState: (BridgeIncoming.State) -> Unit,
     onKeyboard: (Boolean) -> Unit,
@@ -120,7 +120,10 @@ fun WebSurveyScreen(
                         }
                     }
                     loadUrl(url)
-                    post { webRef.value = this }
+                    post {
+                        webRef.value = this
+                        onWebView(this)
+                    }
                 }
             },
         )
