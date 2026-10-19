@@ -111,14 +111,7 @@ fun NavGraph() {
                         },
                         onLoadFailed = { webFailed = true },
                         footer = {
-                            // Таймер — внизу экрана (как в прежнем подвале):
-                            // без клавиатуры у нижнего края, с клавиатурой — над ней
-                            AutoResetTimer(
-                                timeoutSeconds = settings.resetTimeout,
-                                resetTrigger = webTimerKey,
-                                onTimeout = onWebReset,
-                                modifier = Modifier.fillMaxWidth(),
-                            )
+                            // Клавиатура, затем таймер — таймер всегда у нижнего края экрана
                             if (keyboardVisible) {
                                 WebKeyboard(
                                     language = settings.language,
@@ -127,6 +120,12 @@ fun NavGraph() {
                                     onEnter = { webRef?.evaluateJavascript(webEnterJs(), null) },
                                 )
                             }
+                            AutoResetTimer(
+                                timeoutSeconds = settings.resetTimeout,
+                                resetTrigger = webTimerKey,
+                                onTimeout = onWebReset,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
                         },
                     )
                     // Служебные иконки (PIN) — поверх WebView в правом верхнем углу
