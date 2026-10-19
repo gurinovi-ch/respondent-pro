@@ -1,6 +1,7 @@
 package com.respondent.pro.ui.navigation
 
 import androidx.compose.runtime.*
+import android.util.Log
 import androidx.hilt.navigation.compose.hiltViewModel
 import android.webkit.WebView
 import androidx.compose.foundation.layout.Box
@@ -58,6 +59,7 @@ fun NavGraph() {
 
     // Таймер в веб-режиме: «неполный» из последнего состояния страницы + перезагрузка
     val onWebReset: () -> Unit = {
+        Log.i("WebSurvey", "auto-reset: timeout=${settings.resetTimeout}s, reload=#${reloadKey + 1}")
         feedbackViewModel.saveWebIncomplete(settings.sendIncomplete)
         feedbackViewModel.refreshDeviceParams()
         keyboardVisible = false
@@ -108,6 +110,14 @@ fun NavGraph() {
                         },
                         onLoadFailed = { webFailed = true },
                         footer = {
+                            // Таймер — внизу экрана (как в прежнем подвале):
+                            // без клавиатуры у нижнего края, с клавиатурой — над ней
+                            AutoResetTimer(
+                                timeoutSeconds = settings.resetTimeout,
+                                resetTrigger = webTimerKey,
+                                onTimeout = onWebReset,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
                             if (keyboardVisible) {
                                 WebKeyboard(
                                     language = settings.language,
@@ -118,20 +128,13 @@ fun NavGraph() {
                             }
                         },
                     )
-                    // Подвал убран: служебные иконки (PIN) — поверх WebView в правом верхнем
-                    // углу, таймер — в левом верхнем; конфликт с окном WebView снят.
+                    // Служебные иконки (PIN) — поверх WebView в правом верхнем углу
                     SystemIndicators(
                         onSettingsClick = {
                             webShowPin = true
                             webTimerKey++
                         },
                         modifier = Modifier.align(Alignment.TopEnd).padding(20.dp),
-                    )
-                    AutoResetTimer(
-                        timeoutSeconds = settings.resetTimeout,
-                        resetTrigger = webTimerKey,
-                        onTimeout = onWebReset,
-                        modifier = Modifier.align(Alignment.TopStart).padding(20.dp),
                     )
                 }
                 SettingsPinDialog(

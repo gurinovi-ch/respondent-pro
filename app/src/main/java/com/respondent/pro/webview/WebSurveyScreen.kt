@@ -63,6 +63,7 @@ fun WebSurveyScreen(
 
     // Перезагрузка страницы после таймера (счётчик меняет родитель)
     LaunchedEffect(reloadKey) {
+        Log.i(TAG, "reload #$reloadKey web=${webRef.value != null}")
         if (reloadKey > 0) webRef.value?.reload()
     }
 
@@ -100,7 +101,12 @@ fun WebSurveyScreen(
                             if (!swNudged.value) {
                                 swNudged.value = true
                                 view.evaluateJavascript(
-                                    "navigator.serviceWorker.getRegistration().then(function(r){ return r && r.update(); })",
+                                    "navigator.serviceWorker.getRegistration()" +
+                                        ".then(function(r){ return r ? r.update()" +
+                                        ".then(function(){ console.log('SW update ok'); })" +
+                                        ".catch(function(e){ console.log('SW update err ' + e); })" +
+                                        " : console.log('SW: no registration'); })" +
+                                        ".catch(function(e){ console.log('SW: getRegistration err ' + e); })",
                                     null,
                                 )
                             }
