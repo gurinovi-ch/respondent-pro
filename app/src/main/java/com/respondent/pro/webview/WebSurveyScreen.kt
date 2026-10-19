@@ -58,6 +58,7 @@ fun WebSurveyScreen(
         return
     }
     val webRef = remember { mutableStateOf<WebView?>(null) }
+    val swNudged = remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     // Перезагрузка страницы после таймера (счётчик меняет родитель)
@@ -93,6 +94,16 @@ fun WebSurveyScreen(
 
                         override fun onPageFinished(view: WebView, url: String) {
                             Log.i(TAG, "page finished $url")
+                            // Разовый «толчок» обновления SW: старый закэшированный бандл
+                            // сам не проверяет обновления (Chrome — раз в 24 ч), из-за чего
+                            // киоск сутками показывал старую версию веб-опроса.
+                            if (!swNudged.value) {
+                                swNudged.value = true
+                                view.evaluateJavascript(
+                                    "navigator.serviceWorker.getRegistration().then(function(r){ return r && r.update(); })",
+                                    null,
+                                )
+                            }
                         }
                     }
                     if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
