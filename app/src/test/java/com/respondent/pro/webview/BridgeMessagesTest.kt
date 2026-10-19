@@ -42,6 +42,14 @@ class BridgeMessagesTest {
     }
 
     @Test
+    fun `ошибка загрузки формы от страницы - FormUnavailable`() {
+        assertEquals(
+            BridgeIncoming.FormUnavailable,
+            parseBridgeMessage("""{"type":"error"}"""),
+        )
+    }
+
+    @Test
     fun `мусор и неизвестный тип - null`() {
         assertNull(parseBridgeMessage("not json"))
         assertNull(parseBridgeMessage("""{"type":"unknown"}"""))

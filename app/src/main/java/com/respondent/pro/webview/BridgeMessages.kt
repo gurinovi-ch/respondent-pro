@@ -22,6 +22,9 @@ sealed interface BridgeIncoming {
     ) : BridgeIncoming
 
     data class Keyboard(val visible: Boolean) : BridgeIncoming
+
+    /** Страница не смогла получить данные формы (офлайн без кэша, 404, 5xx) — уходим в нативные шаги. */
+    data object FormUnavailable : BridgeIncoming
 }
 
 private data class RawMessage(val type: String?, val payload: RawPayload?)
@@ -41,6 +44,8 @@ fun parseBridgeMessage(json: String): BridgeIncoming? {
     } catch (_: Exception) {
         null
     } ?: return null
+    // «error» — страница не смогла получить данные формы; payload не нужен
+    if (raw.type == "error") return BridgeIncoming.FormUnavailable
     val payload = raw.payload ?: return null
     return when (raw.type) {
         "feedback" -> {

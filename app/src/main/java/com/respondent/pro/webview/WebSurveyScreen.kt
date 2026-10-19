@@ -13,6 +13,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.webkit.WebViewCompat
@@ -42,7 +44,7 @@ fun WebSurveyScreen(
     surveyPath: String?,
     reloadKey: Int,
     onWebView: (WebView) -> Unit = {},
-    onFeedback: (BridgeIncoming.Feedback) -> Boolean,
+    onFeedback: suspend (BridgeIncoming.Feedback) -> Boolean,
     onState: (BridgeIncoming.State) -> Unit,
     onKeyboard: (Boolean) -> Unit,
     onLoadFailed: () -> Unit,
@@ -54,6 +56,7 @@ fun WebSurveyScreen(
         return
     }
     val webRef = remember { mutableStateOf<WebView?>(null) }
+    val scope = rememberCoroutineScope()
 
     // Перезагрузка страницы после таймера (счётчик меняет родитель)
     LaunchedEffect(reloadKey) {
@@ -104,7 +107,7 @@ fun WebSurveyScreen(
                         val parsed = raw?.let { parseBridgeMessage(it) }
                         Log.i(TAG, "bridge: ${raw?.take(200)}")
                         when (parsed) {
-                            is BridgeIncoming.Feedback -> {
+                            is BridgeIncoming.Feedback -> scope.launch {
                                 val ok = onFeedback(parsed)
                                 view.post {
                                     view.evaluateJavascript("window.respondentFeedbackQueued($ok)", null)
@@ -112,6 +115,7 @@ fun WebSurveyScreen(
                             }
                             is BridgeIncoming.State -> onState(parsed)
                             is BridgeIncoming.Keyboard -> onKeyboard(parsed.visible)
+                            is BridgeIncoming.FormUnavailable -> onLoadFailed()
                             null -> {
                                 view.post {
                                     view.evaluateJavascript("window.respondentFeedbackQueued(false)", null)

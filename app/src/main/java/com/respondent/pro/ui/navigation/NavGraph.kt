@@ -56,6 +56,8 @@ fun NavGraph() {
         keyboardVisible = false
         reloadKey++
         webTimerKey++
+        // Пробуем веб-режим снова после сбоя (иначе нативные шаги «залипают» до перезапуска)
+        webFailed = false
     }
 
     // Shared reset function
@@ -71,6 +73,7 @@ fun NavGraph() {
             feedbackViewModel.resetAll()
         }
         commentViewModel.reset()
+        webFailed = false
         navController.navigate(Screen.Feedback.route) {
             popUpTo(Screen.Feedback.route) { inclusive = true }
         }

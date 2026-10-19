@@ -34,6 +34,17 @@ class WebSurveyModeTest {
     }
 
     @Test
+    fun `после отправки таймаут не создаёт повторный неполный`() {
+        val state = WebSurveyState()
+        state.onState(BridgeIncoming.State(rating = 5, comment = "ок", startedAt = 1L))
+        state.markSubmitted()
+        assertNull(state.incompleteToSave(sendIncomplete = true))
+        // следующий визит: страница присылает пустое состояние — тоже нечего сохранять
+        state.onState(BridgeIncoming.State(rating = 0, comment = "", startedAt = null))
+        assertNull(state.incompleteToSave(sendIncomplete = true))
+    }
+
+    @Test
     fun `state без startedAt получает текущее время`() {
         val state = WebSurveyState()
         state.onState(BridgeIncoming.State(rating = 5, comment = "", startedAt = null))

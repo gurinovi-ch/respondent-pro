@@ -48,27 +48,31 @@ class FeedbackViewModel @Inject constructor(
 
     fun onWebState(state: BridgeIncoming.State) = webState.onState(state)
 
-    /** Ответ из веб-опроса: сразу в Room, отправка — фоном (очередь и ретраи существующие). */
-    fun queueWebFeedback(feedback: BridgeIncoming.Feedback): Boolean {
-        viewModelScope.launch {
-            try {
-                val stored = feedbackRepository.save(
-                    Feedback(
-                        rating = feedback.rating,
-                        text = feedback.text,
-                        startedAt = feedback.startedAt,
-                        isComplete = true,
-                        clientKey = feedback.clientKey,
-                    ),
-                )
-                feedbackSender.send(stored)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e("FeedbackViewModel", "Web feedback save failed", e)
-            }
+    /** Ответ из веб-опроса: сохраняем в Room и только потом подтверждаем странице (ack = записано). */
+    suspend fun queueWebFeedback(feedback: BridgeIncoming.Feedback): Boolean = try {
+        val stored = feedbackRepository.save(
+            Feedback(
+                rating = feedback.rating,
+                text = feedback.text,
+                startedAt = feedback.startedAt,
+                isComplete = true,
+                clientKey = feedback.clientKey,
+            ),
+        )
+        webState.markSubmitted()
+        try {
+            feedbackSender.send(stored)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e("FeedbackViewModel", "Web feedback send failed (останется в очереди)", e)
         }
-        return true
+        true
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.e("FeedbackViewModel", "Web feedback save failed", e)
+        false
     }
 
     /** Таймер: «неполный» отзыв из последнего состояния страницы (если включено). */

@@ -16,6 +16,11 @@ class WebSurveyState {
         last = state
     }
 
+    /** Ответ принят нативной очередью: состояние больше не годится для «неполного». */
+    fun markSubmitted() {
+        last = null
+    }
+
     /** Черновик для сохранения при таймауте; null — сохранять нечего/не включено. */
     fun incompleteToSave(sendIncomplete: Boolean): FeedbackDraft? {
         val state = last ?: return null
