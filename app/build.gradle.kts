@@ -82,6 +82,9 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.google.code.gson:gson:2.10.1")
 
+    // Логотип организации на экране (загрузка + дисковый кэш) — срез 2, спека org-logo §8
+    implementation("io.coil-kt:coil-compose:2.7.0")
+
     implementation("com.google.dagger:hilt-android:2.51.1")
     ksp("com.google.dagger:hilt-compiler:2.51.1")
     implementation("androidx.hilt:hilt-navigation-compose:1.1.0")

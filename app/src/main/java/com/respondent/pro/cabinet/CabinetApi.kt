@@ -65,6 +65,14 @@ data class DeviceParams(
     val commentHint: String,
     val thankYouText: String,
     val resetTimeout: Int,
+    /**
+     * Логотип организации: относительный путь `/api/logo/<orgId>?v=<ms>` или null
+     * (логотипа нет ИЛИ включатель в кабинете выключен). Nullable: Gson оставляет null,
+     * если поля в ответе нет (старый сервер).
+     */
+    val logoUrl: String? = null,
+    /** Ступень размера 1…5 (x1 вдвое меньше x5); нет поля → null → полный размер. */
+    val logoSize: Int? = null,
 )
 
 /** Тело POST /tablets/telemetry: null-поля Gson не отправляет. */

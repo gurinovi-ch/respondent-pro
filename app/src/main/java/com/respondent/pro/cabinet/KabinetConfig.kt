@@ -2,5 +2,7 @@ package com.respondent.pro.cabinet
 
 /** Адрес API кабинета (сервер my.respondent.pro). */
 object KabinetConfig {
-    const val BASE_URL = "https://my.respondent.pro/api/"
+    /** Корень сервера — для относительных ссылок API (логотип). */
+    const val ORIGIN = "https://my.respondent.pro"
+    const val BASE_URL = "$ORIGIN/api/"
 }

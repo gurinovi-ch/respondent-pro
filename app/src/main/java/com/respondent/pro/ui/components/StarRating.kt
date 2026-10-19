@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.respondent.pro.ui.theme.StarEmpty
 import com.respondent.pro.ui.theme.StarFilled
@@ -42,13 +43,15 @@ import com.respondent.pro.ui.theme.StarFilled
 fun StarRating(
     rating: Int,
     onRatingChanged: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Потолок размера звезды (ландшафт); null — размер только от ширины экрана. */
+    maxStarSize: Dp? = null
 ) {
     val context = LocalContext.current
     val vibrator = context.getSystemService(Vibrator::class.java)
-    val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+    val screenWidth = LocalConfiguration.current.screenWidthDp
     // Ряд = 80% экрана; звезда занимает 0.88 слота, SpaceEvenly разнесёт остаток
-    val starSize = screenWidth * 0.8f / 5f * 0.88f
+    val starSize = starSizeDp(screenWidth.toFloat(), maxStarSize?.value).dp
 
     val wave = rememberInfiniteTransition(label = "starWave")
 
