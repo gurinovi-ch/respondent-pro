@@ -20,11 +20,10 @@ fun WebKeyboard(
     onBackspace: () -> Unit,
     onEnter: () -> Unit,
 ) {
-    val height = (LocalConfiguration.current.screenHeightDp * 0.3f).dp
     AndroidView(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(height),
+        // Натуральная высота клавиатуры: фиксированная доля экрана обрезала нижний ряд
+        // в ландшафте (клавиатура выше 30% высоты).
+        modifier = Modifier.fillMaxWidth(),
         factory = { context ->
             KeyboardView(context).apply {
                 setLayout(if (language == "en") KeyboardView.LAYOUT_ENG else KeyboardView.LAYOUT_RUS)
