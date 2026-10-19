@@ -29,6 +29,7 @@ import com.respondent.pro.ui.components.contentGapDp
 import com.respondent.pro.ui.components.ctaFontSizeSp
 import com.respondent.pro.ui.components.logoWidthFraction
 import com.respondent.pro.ui.components.StarRating
+import com.respondent.pro.ui.components.SurveyFooter
 import com.respondent.pro.ui.components.SystemIndicators
 import com.respondent.pro.ui.i18n.LocalAppStrings
 import com.respondent.pro.ui.theme.FooterColor
@@ -196,39 +197,21 @@ fun FeedbackScreen(
             }
         }
 
-        // Футер, статус-блок и таймер — у нижнего края экрана
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .onGloballyPositioned { footerHeightPx = it.size.height },
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "RESPONDENT.PRO",
-                fontSize = 18.sp,
-                color = FooterColor
-            )
-
-            // Равные отступы сверху и снизу от статус-блока;
-            // в сумме с статусом и таймером футер поднят ~ на 30% от прежнего отступа
-            Spacer(modifier = Modifier.height(9.dp))
-
-            SystemIndicators(onSettingsClick = {
+        // Футер, статус-блок и таймер — у нижнего края экрана (общий с веб-опросом)
+        SurveyFooter(
+            resetTimeout = settings.resetTimeout,
+            timerKey = timerKey,
+            onSettingsClick = {
                 viewModel.showPin()
                 // Таймер автосброса стартует заново: на ввод PIN-кода
                 // должно быть полное время, а не остаток от экрана оценки
                 timerKey++
-            })
-
-            Spacer(modifier = Modifier.height(9.dp))
-
-            // Auto-reset timer
-            AutoResetTimer(
-                timeoutSeconds = settings.resetTimeout,
-                resetTrigger = timerKey,
-                onTimeout = { onAutoReset() }
-            )
-        }
+            },
+            onTimeout = { onAutoReset() },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .onGloballyPositioned { footerHeightPx = it.size.height },
+        )
 
         // PIN dialog
         if (showPinDialog) {

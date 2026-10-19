@@ -32,6 +32,19 @@ public class KeyboardView extends FrameLayout implements View.OnClickListener {
     private boolean isShiftLong = false;
     private boolean isNumbersShowing = false;
     private EditText currentTextEdit;
+
+    /** Веб-опрос в WebView: клавиатура отправляет символы в страницу вместо EditText. */
+    public interface WebTarget {
+        void onChar(String ch);
+        void onBackspace();
+        void onEnter();
+    }
+
+    private WebTarget webTarget = null;
+
+    public void bindWeb(WebTarget target) { this.webTarget = target; }
+
+    public void unbindWeb() { this.webTarget = null; }
     private int currentLayout = LAYOUT_RUS;
     private int currentShiftKey = R.id.t_rus_shift;
 
@@ -114,10 +127,10 @@ public class KeyboardView extends FrameLayout implements View.OnClickListener {
 
     @Override
     public void onClick(View v) {
-        if (currentTextEdit == null) return;
+        if (currentTextEdit == null && webTarget == null) return;
 
-        int cursorPosition = currentTextEdit.getSelectionStart();
-        int cursorEndPosition = currentTextEdit.getSelectionEnd();
+        int cursorPosition = currentTextEdit != null ? currentTextEdit.getSelectionStart() : 0;
+        int cursorEndPosition = currentTextEdit != null ? currentTextEdit.getSelectionEnd() : 0;
 
         // handle character button click
         if (v.getTag() != null && "letter_button".equals(v.getTag())) {
@@ -128,6 +141,13 @@ public class KeyboardView extends FrameLayout implements View.OnClickListener {
                     makeAllTextButtonsBig(isShift);
                 }
                 text = text.toString().toUpperCase();
+            }
+
+            if (webTarget != null) {
+                // Веб-опрос: символ уходит в страницу через JS-мост
+                webTarget.onChar(text.toString());
+                callOnClick();
+                return;
             }
 
             if (cursorPosition == cursorEndPosition) {
@@ -151,17 +171,24 @@ public class KeyboardView extends FrameLayout implements View.OnClickListener {
         } else if (id == R.id.t_rus_lang || id == R.id.t_eng_lang || id == R.id.t_num_lang) {
             handleChangeLangClick();
         } else if (id == R.id.t_rus_backspace || id == R.id.t_eng_backspace || id == R.id.t_num_backspace) {
-            Editable editable = currentTextEdit.getText();
-            int charCount = editable.length();
-            if (charCount > 0 && cursorPosition > 0) {
-                if (cursorPosition == cursorEndPosition)
-                    editable.delete(cursorPosition - 1, cursorEndPosition);
-                else
-                    editable.delete(cursorPosition, cursorEndPosition);
+            if (webTarget != null) {
+                webTarget.onBackspace();
+            } else {
+                Editable editable = currentTextEdit.getText();
+                int charCount = editable.length();
+                if (charCount > 0 && cursorPosition > 0) {
+                    if (cursorPosition == cursorEndPosition)
+                        editable.delete(cursorPosition - 1, cursorEndPosition);
+                    else
+                        editable.delete(cursorPosition, cursorEndPosition);
+                }
             }
         } else if (id == R.id.t_rus_enter || id == R.id.t_eng_enter || id == R.id.t_num_enter) {
-            if (currentTextEdit.getInputType() != InputType.TYPE_TEXT_VARIATION_SHORT_MESSAGE)
+            if (webTarget != null) {
+                webTarget.onEnter();
+            } else if (currentTextEdit.getInputType() != InputType.TYPE_TEXT_VARIATION_SHORT_MESSAGE) {
                 currentTextEdit.append("\n");
+            }
         }
         // MUST be after all text modifications — Compose reads EditText text here
         callOnClick();

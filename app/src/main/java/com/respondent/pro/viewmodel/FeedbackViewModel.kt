@@ -12,6 +12,8 @@ import com.respondent.pro.cabinet.BindingStorage
 import com.respondent.pro.cabinet.CabinetApi
 import com.respondent.pro.cabinet.DeviceParamsSync
 import com.respondent.pro.cabinet.DeviceTelemetryReporter
+import com.respondent.pro.webview.BridgeIncoming
+import com.respondent.pro.webview.WebSurveyState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,12 +32,64 @@ class FeedbackViewModel @Inject constructor(
     private val telemetryReporter: DeviceTelemetryReporter,
 ) : ViewModel() {
 
-    private val deviceParamsSync = DeviceParamsSync(cabinetApi, bindingStorage, settingsRepository::applyDeviceParams)
+    private val deviceParamsSync = DeviceParamsSync(cabinetApi, bindingStorage) { p, mode, path ->
+        settingsRepository.applyDeviceParams(p, mode, path)
+    }
 
     /** Повторный fetch параметров устройства — вызывается при таймерном сбросе на главный. */
     fun refreshDeviceParams() {
         viewModelScope.launch {
             deviceParamsSync.fetchAndApply()
+        }
+    }
+
+    // --- Веб-опрос в WebView (срез 4) ---
+    private val webState = WebSurveyState()
+
+    fun onWebState(state: BridgeIncoming.State) = webState.onState(state)
+
+    /** Ответ из веб-опроса: сразу в Room, отправка — фоном (очередь и ретраи существующие). */
+    fun queueWebFeedback(feedback: BridgeIncoming.Feedback): Boolean {
+        viewModelScope.launch {
+            try {
+                val stored = feedbackRepository.save(
+                    Feedback(
+                        rating = feedback.rating,
+                        text = feedback.text,
+                        startedAt = feedback.startedAt,
+                        isComplete = true,
+                        clientKey = feedback.clientKey,
+                    ),
+                )
+                feedbackSender.send(stored)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("FeedbackViewModel", "Web feedback save failed", e)
+            }
+        }
+        return true
+    }
+
+    /** Таймер: «неполный» отзыв из последнего состояния страницы (если включено). */
+    fun saveWebIncomplete(sendIncomplete: Boolean) {
+        val draft = webState.incompleteToSave(sendIncomplete) ?: return
+        viewModelScope.launch {
+            try {
+                val stored = feedbackRepository.save(
+                    Feedback(
+                        rating = draft.rating,
+                        text = draft.text,
+                        startedAt = draft.startedAt,
+                        isComplete = false,
+                    ),
+                )
+                feedbackSender.send(stored)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("FeedbackViewModel", "Web incomplete save failed", e)
+            }
         }
     }
 

@@ -55,6 +55,10 @@ data class FeedbackAck(
 
 data class DeviceParamsResponse(
     val mode: String,
+    /** "APK" — нативные шаги, "WEB" — веб-опрос в WebView (срез 4). */
+    val surveyMode: String? = null,
+    /** Путь веб-опроса (`/survey/form/<code>`); null — формы нет. */
+    val surveyPath: String? = null,
     val settings: DeviceParams,
 )
 

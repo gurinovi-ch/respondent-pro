@@ -50,7 +50,11 @@ data class AppSettings(
      */
     val logoUrl: String? = null,
     /** Ступень размера логотипа 1…5 (x1 вдвое меньше x5); 5 — полный размер. */
-    val logoSize: Int = 5
+    val logoSize: Int = 5,
+    /** Режим опроса: "APK" — нативные шаги, "WEB" — веб-опрос в WebView. */
+    val surveyMode: String = "APK",
+    /** Путь веб-опроса (`/survey/form/<code>`); null — формы нет. */
+    val surveyPath: String? = null
 )
 
 @Singleton
@@ -79,6 +83,8 @@ class SettingsRepository @Inject constructor(
         val SMTP_SSL = booleanPreferencesKey("smtp_ssl")
         val LOGO_URL = stringPreferencesKey("logo_url")
         val LOGO_SIZE = intPreferencesKey("logo_size")
+        val SURVEY_MODE = stringPreferencesKey("survey_mode")
+        val SURVEY_PATH = stringPreferencesKey("survey_path")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -103,7 +109,9 @@ class SettingsRepository @Inject constructor(
             smtpPort = prefs[Keys.SMTP_PORT] ?: 587,
             smtpSsl = prefs[Keys.SMTP_SSL] ?: false,
             logoUrl = prefs[Keys.LOGO_URL],
-            logoSize = prefs[Keys.LOGO_SIZE] ?: 5
+            logoSize = prefs[Keys.LOGO_SIZE] ?: 5,
+            surveyMode = prefs[Keys.SURVEY_MODE] ?: "APK",
+            surveyPath = prefs[Keys.SURVEY_PATH]
         )
     }
 
@@ -136,7 +144,7 @@ class SettingsRepository @Inject constructor(
      * pin/telegram/sendMethod/email/language/send_incomplete не трогаются (спека §6).
      * Логотип: null от сервера = «показывать нечего» → ключ удаляем, старый логотип с экрана уходит.
      */
-    suspend fun applyDeviceParams(p: DeviceParams) {
+    suspend fun applyDeviceParams(p: DeviceParams, surveyMode: String? = null, surveyPath: String? = null) {
         context.dataStore.edit { prefs ->
             prefs[Keys.ORG_NAME] = p.orgName
             prefs[Keys.GREETING] = p.greeting
@@ -150,6 +158,13 @@ class SettingsRepository @Inject constructor(
                 prefs[Keys.LOGO_URL] = p.logoUrl
             }
             prefs[Keys.LOGO_SIZE] = normalizeLogoSize(p.logoSize)
+            // Режим опроса: WEB — только при явном значении с сервера
+            prefs[Keys.SURVEY_MODE] = if (surveyMode == "WEB") "WEB" else "APK"
+            if (surveyPath.isNullOrBlank()) {
+                prefs.remove(Keys.SURVEY_PATH)
+            } else {
+                prefs[Keys.SURVEY_PATH] = surveyPath
+            }
         }
     }
 

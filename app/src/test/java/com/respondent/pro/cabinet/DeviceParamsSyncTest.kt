@@ -52,7 +52,7 @@ class DeviceParamsSyncTest {
         val storage = FakeStorage(bound)
         val api = FakeApi { response }
         var applied: DeviceParams? = null
-        val sync = DeviceParamsSync(api, storage) { applied = it }
+        val sync = DeviceParamsSync(api, storage) { p, _, _ -> applied = p }
 
         val ok = sync.fetchAndApply()
 
@@ -67,7 +67,7 @@ class DeviceParamsSyncTest {
         val storage = FakeStorage(null)
         val api = FakeApi { response }
         var applied = false
-        val sync = DeviceParamsSync(api, storage) { applied = true }
+        val sync = DeviceParamsSync(api, storage) { _, _, _ -> applied = true }
 
         val ok = sync.fetchAndApply()
 
@@ -81,7 +81,7 @@ class DeviceParamsSyncTest {
         val storage = FakeStorage(bound)
         val api = FakeApi { throw httpError(401) }
         var applied = false
-        val sync = DeviceParamsSync(api, storage) { applied = true }
+        val sync = DeviceParamsSync(api, storage) { _, _, _ -> applied = true }
 
         val ok = sync.fetchAndApply()
 
@@ -96,7 +96,7 @@ class DeviceParamsSyncTest {
         val storage = FakeStorage(bound)
         val api = FakeApi { throw IOException("timeout") }
         var applied = false
-        val sync = DeviceParamsSync(api, storage) { applied = true }
+        val sync = DeviceParamsSync(api, storage) { _, _, _ -> applied = true }
 
         val ok = sync.fetchAndApply()
 
