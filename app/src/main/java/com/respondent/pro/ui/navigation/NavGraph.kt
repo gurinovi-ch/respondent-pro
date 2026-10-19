@@ -3,11 +3,18 @@ package com.respondent.pro.ui.navigation
 import androidx.compose.runtime.*
 import androidx.hilt.navigation.compose.hiltViewModel
 import android.webkit.WebView
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.respondent.pro.ui.components.AutoResetTimer
 import com.respondent.pro.ui.components.SettingsPinDialog
-import com.respondent.pro.ui.components.SurveyFooter
+import com.respondent.pro.ui.components.SystemIndicators
 import com.respondent.pro.ui.components.WebKeyboard
 import com.respondent.pro.ui.i18n.LocalAppStrings
 import com.respondent.pro.ui.screens.*
@@ -82,31 +89,51 @@ fun NavGraph() {
     NavHost(navController = navController, startDestination = Screen.Feedback.route) {
         composable(Screen.Feedback.route) {
             if (webEnabled) {
-                WebSurveyScreen(
-                    surveyPath = settings.surveyPath,
-                    reloadKey = reloadKey,
-                    onWebView = { webRef = it },
-                    onFeedback = { feedbackViewModel.queueWebFeedback(it) },
-                    onState = { feedbackViewModel.onWebState(it) },
-                    onKeyboard = { keyboardVisible = it },
-                    onLoadFailed = { webFailed = true },
-                    footer = {
-                        if (keyboardVisible) {
-                            WebKeyboard(
-                                language = settings.language,
-                                onChar = { webRef?.evaluateJavascript(webKeyJs(it), null) },
-                                onBackspace = { webRef?.evaluateJavascript(webBackspaceJs(), null) },
-                                onEnter = { webRef?.evaluateJavascript(webEnterJs(), null) },
-                            )
-                        }
-                        SurveyFooter(
-                            resetTimeout = settings.resetTimeout,
-                            timerKey = webTimerKey,
-                            onSettingsClick = { webShowPin = true },
-                            onTimeout = onWebReset,
-                        )
-                    },
-                )
+                Box(modifier = Modifier.fillMaxSize()) {
+                    WebSurveyScreen(
+                        surveyPath = settings.surveyPath,
+                        reloadKey = reloadKey,
+                        onWebView = { webRef = it },
+                        onFeedback = { feedback ->
+                            feedbackViewModel.queueWebFeedback(feedback).also { webTimerKey++ }
+                        },
+                        onState = {
+                            feedbackViewModel.onWebState(it)
+                            // Любое касание на странице (оценка/текст) перезапускает таймер
+                            webTimerKey++
+                        },
+                        onKeyboard = {
+                            keyboardVisible = it
+                            webTimerKey++
+                        },
+                        onLoadFailed = { webFailed = true },
+                        footer = {
+                            if (keyboardVisible) {
+                                WebKeyboard(
+                                    language = settings.language,
+                                    onChar = { webRef?.evaluateJavascript(webKeyJs(it), null) },
+                                    onBackspace = { webRef?.evaluateJavascript(webBackspaceJs(), null) },
+                                    onEnter = { webRef?.evaluateJavascript(webEnterJs(), null) },
+                                )
+                            }
+                        },
+                    )
+                    // Подвал убран: служебные иконки (PIN) — поверх WebView в правом верхнем
+                    // углу, таймер — в левом верхнем; конфликт с окном WebView снят.
+                    SystemIndicators(
+                        onSettingsClick = {
+                            webShowPin = true
+                            webTimerKey++
+                        },
+                        modifier = Modifier.align(Alignment.TopEnd).padding(20.dp),
+                    )
+                    AutoResetTimer(
+                        timeoutSeconds = settings.resetTimeout,
+                        resetTrigger = webTimerKey,
+                        onTimeout = onWebReset,
+                        modifier = Modifier.align(Alignment.TopStart).padding(20.dp),
+                    )
+                }
                 SettingsPinDialog(
                     open = webShowPin,
                     title = strings.pinDialogTitle,
