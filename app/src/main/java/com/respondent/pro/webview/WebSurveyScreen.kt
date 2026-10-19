@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.util.Log
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebChromeClient
+import android.webkit.ConsoleMessage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.Column
@@ -97,6 +99,13 @@ fun WebSurveyScreen(
                         Log.i(TAG, "WEB_MESSAGE_LISTENER unsupported — native fallback")
                         post { onLoadFailed() }
                         return@apply
+                    }
+                    webChromeClient = object : WebChromeClient() {
+                        override fun onConsoleMessage(message: ConsoleMessage): Boolean {
+                            // Диагностика страницы (PWA/SW/ошибки) — в logcat, без визуальных проверок
+                            Log.i(TAG, "console ${message.message()} (${message.lineNumber()})")
+                            return true
+                        }
                     }
                     WebViewCompat.addWebMessageListener(
                         this,

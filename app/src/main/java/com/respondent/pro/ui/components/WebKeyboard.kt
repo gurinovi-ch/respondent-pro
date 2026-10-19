@@ -21,9 +21,12 @@ fun WebKeyboard(
     onEnter: () -> Unit,
 ) {
     AndroidView(
-        // Натуральная высота клавиатуры: фиксированная доля экрана обрезала нижний ряд
-        // в ландшафте (клавиатура выше 30% высоты).
-        modifier = Modifier.fillMaxWidth(),
+        // Высота клавиатуры ограничена: в корне keyboard.xml есть ряды match_parent,
+        // поэтому без ограничения она растягивается на весь экран, а при 30% обрезался
+        // нижний ряд. 210dp = 4 ряда по 47.5dp + отступы.
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(210.dp),
         factory = { context ->
             KeyboardView(context).apply {
                 setLayout(if (language == "en") KeyboardView.LAYOUT_ENG else KeyboardView.LAYOUT_RUS)
