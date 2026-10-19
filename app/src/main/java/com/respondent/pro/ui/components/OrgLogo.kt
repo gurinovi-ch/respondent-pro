@@ -6,9 +6,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -30,6 +32,10 @@ fun OrgLogo(
     gapAfter: Dp = 12.dp,
     /** Доля ширины колонки под окно: 0.875 (70% экрана) в портрете, 0.625 (50%) в ландшафте. */
     widthFraction: Float = 0.875f,
+    /** Готовая ширина окна (ландшафт, когда высота ограничивает) — важнее [widthFraction]. */
+    width: Dp? = null,
+    /** Сообщает высоту окна — экран по ней балансирует вертикаль. */
+    onHeightChanged: (Int) -> Unit = {},
 ) {
     if (logoUrl.isNullOrBlank()) return
     val url = absoluteLogoUrl(logoUrl)
@@ -48,8 +54,12 @@ fun OrgLogo(
                 }
             },
             modifier = Modifier
-                .fillMaxWidth(widthFraction * logoScale(logoSize))
-                .aspectRatio(16f / 9f),
+                .then(
+                    if (width != null) Modifier.width(width)
+                    else Modifier.fillMaxWidth(widthFraction * logoScale(logoSize))
+                )
+                .aspectRatio(16f / 9f)
+                .onGloballyPositioned { onHeightChanged(it.size.height) },
         )
         Spacer(modifier = Modifier.height(gapAfter))
     }
