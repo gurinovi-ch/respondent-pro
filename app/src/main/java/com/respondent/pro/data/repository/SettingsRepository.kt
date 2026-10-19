@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import com.respondent.pro.cabinet.DeviceParams
+import com.respondent.pro.cabinet.normalizeLogoSize
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -42,7 +43,14 @@ data class AppSettings(
     /** SMTP порт */
     val smtpPort: Int = 587,
     /** Использовать SSL */
-    val smtpSsl: Boolean = false
+    val smtpSsl: Boolean = false,
+    /**
+     * Логотип организации с сервера (относительный путь) или null.
+     * Пишется только синхронизацией параметров — на планшете не редактируется.
+     */
+    val logoUrl: String? = null,
+    /** Ступень размера логотипа 1…5 (x1 вдвое меньше x5); 5 — полный размер. */
+    val logoSize: Int = 5
 )
 
 @Singleton
@@ -69,6 +77,8 @@ class SettingsRepository @Inject constructor(
         val SMTP_HOST = stringPreferencesKey("smtp_host")
         val SMTP_PORT = intPreferencesKey("smtp_port")
         val SMTP_SSL = booleanPreferencesKey("smtp_ssl")
+        val LOGO_URL = stringPreferencesKey("logo_url")
+        val LOGO_SIZE = intPreferencesKey("logo_size")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -91,7 +101,9 @@ class SettingsRepository @Inject constructor(
             emailTo = prefs[Keys.EMAIL_TO] ?: "",
             smtpHost = prefs[Keys.SMTP_HOST] ?: "",
             smtpPort = prefs[Keys.SMTP_PORT] ?: 587,
-            smtpSsl = prefs[Keys.SMTP_SSL] ?: false
+            smtpSsl = prefs[Keys.SMTP_SSL] ?: false,
+            logoUrl = prefs[Keys.LOGO_URL],
+            logoSize = prefs[Keys.LOGO_SIZE] ?: 5
         )
     }
 
@@ -120,8 +132,9 @@ class SettingsRepository @Inject constructor(
     }
 
     /**
-     * Записывает только 6 экранных полей, пришедших с сервера.
+     * Записывает только экранные поля, пришедшие с сервера (6 текстовых + логотип).
      * pin/telegram/sendMethod/email/language/send_incomplete не трогаются (спека §6).
+     * Логотип: null от сервера = «показывать нечего» → ключ удаляем, старый логотип с экрана уходит.
      */
     suspend fun applyDeviceParams(p: DeviceParams) {
         context.dataStore.edit { prefs ->
@@ -131,6 +144,12 @@ class SettingsRepository @Inject constructor(
             prefs[Keys.COMMENT_HINT] = p.commentHint
             prefs[Keys.THANK_YOU_TEXT] = p.thankYouText
             prefs[Keys.RESET_TIMEOUT] = p.resetTimeout
+            if (p.logoUrl.isNullOrBlank()) {
+                prefs.remove(Keys.LOGO_URL)
+            } else {
+                prefs[Keys.LOGO_URL] = p.logoUrl
+            }
+            prefs[Keys.LOGO_SIZE] = normalizeLogoSize(p.logoSize)
         }
     }
 

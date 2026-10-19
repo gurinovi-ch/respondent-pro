@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.respondent.pro.ui.components.AutoResetTimer
 import com.respondent.pro.ui.components.CircleCloseButton
+import com.respondent.pro.ui.components.OrgLogo
 import com.respondent.pro.ui.components.PinInput
 import com.respondent.pro.ui.components.StarRating
 import com.respondent.pro.ui.components.SystemIndicators
@@ -64,6 +65,10 @@ fun FeedbackScreen(
                 modifier = Modifier.fillMaxWidth(0.8f),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // Логотип организации (из кабинета): выше названия, окно 16:9 × ступень размера.
+                // Нет логотипа/выключен в кабинете — не рисуется ничего, вёрстка не сдвигается.
+                OrgLogo(logoUrl = settings.logoUrl, logoSize = settings.logoSize)
+
                 // Organization name (вход в настройки — через шестерёнку справа сверху)
                 Text(
                     text = settings.orgName.ifEmpty { "ORGANIZATION" },

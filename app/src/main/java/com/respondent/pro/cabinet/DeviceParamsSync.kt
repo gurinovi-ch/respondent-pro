@@ -27,7 +27,12 @@ class DeviceParamsSync(
         return try {
             val response = api.deviceParams()
             applyParams(response.settings)
-            Log.i(TAG, "Device params applied, mode=${response.mode}")
+            Log.i(
+                TAG,
+                "Device params applied, mode=${response.mode}, " +
+                    "logo=${if (response.settings.logoUrl.isNullOrBlank()) "no" else "yes"} " +
+                    "size=${response.settings.logoSize ?: 5}",
+            )
             true
         } catch (e: CancellationException) {
             throw e
