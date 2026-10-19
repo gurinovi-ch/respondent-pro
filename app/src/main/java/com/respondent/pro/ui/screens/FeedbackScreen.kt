@@ -1,5 +1,7 @@
 package com.respondent.pro.ui.screens
 
+import android.content.res.Configuration
+import android.util.Log
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,6 +19,8 @@ import com.respondent.pro.ui.components.AutoResetTimer
 import com.respondent.pro.ui.components.CircleCloseButton
 import com.respondent.pro.ui.components.OrgLogo
 import com.respondent.pro.ui.components.PinInput
+import com.respondent.pro.ui.components.ctaFontSizeSp
+import com.respondent.pro.ui.components.logoWidthFraction
 import com.respondent.pro.ui.components.StarRating
 import com.respondent.pro.ui.components.SystemIndicators
 import com.respondent.pro.ui.i18n.LocalAppStrings
@@ -38,6 +42,18 @@ fun FeedbackScreen(
     val showPinDialog by viewModel.showPinDialog.collectAsState()
     val strings = LocalAppStrings.current
     var timerKey by remember { mutableStateOf(0) }
+    // Ландшафт: по вертикали не хватает места — уменьшаем только логотип,
+    // обращение к клиенту и звёзды; название/приветствие/кнопка/футер без изменений.
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val logoFraction = logoWidthFraction(isLandscape)
+    val ctaSize = ctaFontSizeSp(isLandscape)
+    LaunchedEffect(isLandscape) {
+        Log.i(
+            "FeedbackScreen",
+            "landscape=$isLandscape logoFrac=$logoFraction cta=${ctaSize}sp " +
+                "starMax=${if (isLandscape) 56 else "none"}dp",
+        )
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         // Крестик отмены — появляется после выбора оценки, до нажатия «Готово».
@@ -55,9 +71,13 @@ fun FeedbackScreen(
             )
         }
 
-        // Блок оценки — центр экрана по вертикали и горизонтали, ширина 80%
+        // Блок оценки — центр экрана по вертикали и горизонтали, ширина 80%.
+        // В ландшафте центрируем в области над футером (90dp), иначе кнопка «Готово»
+        // заезжает под RESPONDENT.PRO/индикаторы/таймер.
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = if (isLandscape) 90.dp else 0.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -67,7 +87,7 @@ fun FeedbackScreen(
             ) {
                 // Логотип организации (из кабинета): выше названия, окно 16:9 × ступень размера.
                 // Нет логотипа/выключен в кабинете — не рисуется ничего, вёрстка не сдвигается.
-                OrgLogo(logoUrl = settings.logoUrl, logoSize = settings.logoSize)
+                OrgLogo(logoUrl = settings.logoUrl, logoSize = settings.logoSize, widthFraction = logoFraction)
 
                 // Organization name (вход в настройки — через шестерёнку справа сверху)
                 Text(
@@ -94,8 +114,8 @@ fun FeedbackScreen(
                 // Call to action
                 Text(
                     text = settings.callToAction.ifEmpty { strings.defaultCallToAction },
-                    fontSize = 54.sp,
-                    lineHeight = 54.sp,
+                    fontSize = ctaSize.sp,
+                    lineHeight = ctaSize.sp,
                     color = TextPrimary,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
@@ -106,7 +126,8 @@ fun FeedbackScreen(
                 // Star rating — 80% ширины экрана, волна до выбора оценки
                 StarRating(
                     rating = rating,
-                    onRatingChanged = { viewModel.setRating(it); timerKey++ }
+                    onRatingChanged = { viewModel.setRating(it); timerKey++ },
+                    maxStarSize = if (isLandscape) 56.dp else null
                 )
 
                 Spacer(modifier = Modifier.height(32.dp))

@@ -28,6 +28,8 @@ fun OrgLogo(
     logoSize: Int,
     modifier: Modifier = Modifier,
     gapAfter: Dp = 12.dp,
+    /** Доля ширины колонки под окно: 0.875 (70% экрана) в портрете, 0.625 (50%) в ландшафте. */
+    widthFraction: Float = 0.875f,
 ) {
     if (logoUrl.isNullOrBlank()) return
     val url = absoluteLogoUrl(logoUrl)
@@ -39,14 +41,14 @@ fun OrgLogo(
             onState = { state ->
                 when (state) {
                     is AsyncImagePainter.State.Success ->
-                        Log.i(TAG, "loaded size=$logoSize scale=${logoScale(logoSize)} from=${state.result.dataSource}")
+                        Log.i(TAG, "loaded size=$logoSize scale=${logoScale(logoSize)} frac=$widthFraction from=${state.result.dataSource}")
                     is AsyncImagePainter.State.Error ->
                         Log.i(TAG, "error $url: ${state.result.throwable.message}")
                     else -> Unit
                 }
             },
             modifier = Modifier
-                .fillMaxWidth(0.875f * logoScale(logoSize))
+                .fillMaxWidth(widthFraction * logoScale(logoSize))
                 .aspectRatio(16f / 9f),
         )
         Spacer(modifier = Modifier.height(gapAfter))
