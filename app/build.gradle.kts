@@ -63,9 +63,8 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
-    // Проба WebView: WebViewAssetLoader раздаёт assets по https-origin (SW требует secure context).
-    // Только debug — в релиз не попадает.
-    debugImplementation("androidx.webkit:webkit:1.11.0")
+    // WebView + мост веб-опроса (страница с реального origin, срез 4)
+    implementation("androidx.webkit:webkit:1.11.0")
 
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.6")
