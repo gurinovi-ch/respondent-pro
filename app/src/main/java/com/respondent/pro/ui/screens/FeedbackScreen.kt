@@ -15,19 +15,14 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.respondent.pro.cabinet.logoScale
 import com.respondent.pro.ui.components.AutoResetTimer
 import com.respondent.pro.ui.components.CircleCloseButton
-import com.respondent.pro.ui.components.OrgLogo
 import com.respondent.pro.ui.components.PinInput
 import com.respondent.pro.ui.components.STAR_MAX_LANDSCAPE_DP
-import com.respondent.pro.ui.components.cappedLogoWidthPx
 import com.respondent.pro.ui.components.contentGapDp
 import com.respondent.pro.ui.components.ctaFontSizeSp
-import com.respondent.pro.ui.components.logoWidthFraction
 import com.respondent.pro.ui.components.SettingsPinDialog
 import com.respondent.pro.ui.components.StarRating
 import com.respondent.pro.ui.components.SurveyFooter
@@ -52,11 +47,10 @@ fun FeedbackScreen(
     val showPinDialog by viewModel.showPinDialog.collectAsState()
     val strings = LocalAppStrings.current
     var timerKey by remember { mutableStateOf(0) }
-    // Ландшафт: по вертикали не хватает места — уменьшаем только логотип,
-    // обращение к клиенту и звёзды; название/приветствие/кнопка/футер без изменений.
+    // Ландшафт: по вертикали не хватает места — уменьшаем обращение к клиенту
+    // и звёзды; название/приветствие/кнопка/футер без изменений.
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val screenHeightDp = LocalConfiguration.current.screenHeightDp
-    val logoFraction = logoWidthFraction(isLandscape)
     val ctaSize = ctaFontSizeSp(isLandscape)
     val gap = contentGapDp(isLandscape)
     // Замеры раскладки: контент центрируется в области над футером, а не в полной высоте —
@@ -64,39 +58,20 @@ fun FeedbackScreen(
     val density = LocalDensity.current
     var contentHeightPx by remember { mutableIntStateOf(0) }
     var footerHeightPx by remember { mutableIntStateOf(0) }
-    var logoHeightPx by remember { mutableIntStateOf(0) }
-    var columnWidthPx by remember { mutableIntStateOf(0) }
-    var screenHeightPx by remember { mutableIntStateOf(0) }
-    // Ландшафт: 50% ширины — стартовая ширина логотипа, но по высоте он не должен
-    // выдавливать остальное: если места не хватает, окно ужимается (высота = ширина × 9/16).
-    val logoWidthDp: Dp? = if (!isLandscape || columnWidthPx == 0 || screenHeightPx == 0) {
-        null
-    } else with(density) {
-        val desired = logoFraction * columnWidthPx * logoScale(settings.logoSize)
-        val other = (contentHeightPx - logoHeightPx).coerceAtLeast(0)
-        cappedLogoWidthPx(
-            desiredPx = desired,
-            availPx = (screenHeightPx - footerHeightPx).toFloat(),
-            otherContentPx = other.toFloat(),
-            marginPx = 8.dp.toPx(),
-        ).toDp()
-    }
-    LaunchedEffect(isLandscape, contentHeightPx, footerHeightPx, logoHeightPx, columnWidthPx) {
+    LaunchedEffect(isLandscape, contentHeightPx, footerHeightPx) {
         val contentDp = with(density) { contentHeightPx.toDp().value }
         val footerDp = with(density) { footerHeightPx.toDp().value }
-        val logoDp = with(density) { logoHeightPx.toDp().value }
         val screenH = screenHeightDp
         Log.i(
             "FeedbackScreen",
             "fit: landscape=$isLandscape screenH=${screenH}dp footer=${footerDp.roundToInt()}dp " +
-                "content=${contentDp.roundToInt()}dp (logo=${logoDp.roundToInt()}dp) " +
-                "avail=${(screenH - footerDp).roundToInt()}dp logoSize=${settings.logoSize} " +
-                "logoW=${logoWidthDp?.let { with(density) { it.toPx() } }?.roundToInt() ?: -1}px " +
-                "logoFrac=$logoFraction cta=${ctaSize}sp gap=${gap}dp starMax=${if (isLandscape) STAR_MAX_LANDSCAPE_DP.toInt() else 0}dp",
+                "content=${contentDp.roundToInt()}dp " +
+                "avail=${(screenH - footerDp).roundToInt()}dp " +
+                "cta=${ctaSize}sp gap=${gap}dp starMax=${if (isLandscape) STAR_MAX_LANDSCAPE_DP.toInt() else 0}dp",
         )
     }
 
-    Box(modifier = Modifier.fillMaxSize().onGloballyPositioned { screenHeightPx = it.size.height }) {
+    Box(modifier = Modifier.fillMaxSize()) {
         // Крестик отмены — появляется после выбора оценки, до нажатия «Готово».
         // Отступ = 1% высоты экрана (как был у индикаторов)
         if (rating > 0) {
@@ -127,20 +102,9 @@ fun FeedbackScreen(
                     .fillMaxWidth(0.8f)
                     .onGloballyPositioned {
                         contentHeightPx = it.size.height
-                        columnWidthPx = it.size.width
                     },
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Логотип организации (из кабинета): выше названия, окно 16:9 × ступень размера.
-                // Нет логотипа/выключен в кабинете — не рисуется ничего, вёрстка не сдвигается.
-                OrgLogo(
-                    logoUrl = settings.logoUrl,
-                    logoSize = settings.logoSize,
-                    widthFraction = logoFraction,
-                    width = logoWidthDp,
-                    onHeightChanged = { logoHeightPx = it },
-                )
-
                 // Organization name (вход в настройки — через шестерёнку справа сверху)
                 Text(
                     text = settings.orgName.ifEmpty { "ORGANIZATION" },
