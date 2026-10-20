@@ -14,6 +14,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.res.ResourcesCompat
+import com.respondent.pro.R
 import com.respondent.pro.data.repository.AppSettings
 import com.respondent.pro.ui.components.AutoResetTimer
 import com.respondent.pro.ui.components.CircleCloseButton
@@ -71,6 +73,7 @@ fun CommentScreen(
                 factory = { context ->
                     EditText(context).apply {
                         hint = strings.editTextHint
+                        typeface = ResourcesCompat.getFont(context, R.font.gilroy_regular)
                         textSize = 25.2f
                         maxLines = 8
                         minLines = 4
