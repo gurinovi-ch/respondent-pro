@@ -136,26 +136,30 @@ fun NavGraph() {
                         },
                         modifier = Modifier.align(Alignment.TopStart).padding(20.dp),
                     )
+                    // Закрытие окна PIN (успех/отмена/таймаут) — мягкое обновление контента:
+                    // страница перезапрашивает данные формы без перезагрузки (хук respondentRefresh)
+                    val closeWebPin: () -> Unit = {
+                        webShowPin = false
+                        webTimerKey++
+                        feedbackViewModel.refreshDeviceParams()
+                        webRef?.evaluateJavascript(
+                            "window.respondentRefresh && window.respondentRefresh()",
+                            null,
+                        )
+                    }
+                    // PIN — оверлей внутри активности (не отдельное окно: панели не дёргаются)
+                    SettingsPinDialog(
+                        open = webShowPin,
+                        title = strings.pinDialogTitle,
+                        cancelLabel = strings.btnCancel,
+                        verifyPin = feedbackViewModel::verifyPin,
+                        onSuccess = {
+                            closeWebPin()
+                            navController.navigate(Screen.Settings.route)
+                        },
+                        onDismiss = closeWebPin,
+                    )
                 }
-                // Закрытие окна PIN (успех/отмена/таймаут) — полное обновление контента:
-                // перезагрузка страницы + свежие параметры формы
-                val closeWebPin: () -> Unit = {
-                    webShowPin = false
-                    reloadKey++
-                    webTimerKey++
-                    feedbackViewModel.refreshDeviceParams()
-                }
-                SettingsPinDialog(
-                    open = webShowPin,
-                    title = strings.pinDialogTitle,
-                    cancelLabel = strings.btnCancel,
-                    verifyPin = feedbackViewModel::verifyPin,
-                    onSuccess = {
-                        closeWebPin()
-                        navController.navigate(Screen.Settings.route)
-                    },
-                    onDismiss = closeWebPin,
-                )
             } else {
                 FeedbackScreen(
                     viewModel = feedbackViewModel,

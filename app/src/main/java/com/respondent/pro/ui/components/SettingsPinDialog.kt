@@ -1,23 +1,33 @@
 package com.respondent.pro.ui.components
 
 import android.util.Log
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
@@ -26,10 +36,14 @@ import kotlinx.coroutines.delay
 private const val PIN_AUTO_CLOSE_SECONDS = 10
 
 /**
- * PIN-диалог доступа к настройкам киоска. Общий для нативных шагов и веб-опроса.
- * Панели системной навигации скрыты и во время показа: окно диалога не наследует
- * immersive-флаги главного окна, и система возвращала панели обратно.
- * Автозакрытие через 10 с со счётчиком; после таймаута — статус «Закрыто автоматически».
+ * PIN-доступ к настройкам киоска. Общий для нативных шагов и веб-опроса.
+ *
+ * Раньше это был AlertDialog — отдельное окно, которое не наследует immersive-флаги
+ * активности: при показе возвращался статус-бар, высота WebView менялась на 24dp и
+ * контент «прыгал». Теперь это оверлей внутри активности (без отдельного окна),
+ * поэтому системные панели не дёргаются.
+ *
+ * Автозакрытие через 10 с со счётчиком; по таймауту — статус «Закрыто автоматически».
  */
 @Composable
 fun SettingsPinDialog(
@@ -45,6 +59,12 @@ fun SettingsPinDialog(
     var secondsLeft by remember { mutableStateOf(PIN_AUTO_CLOSE_SECONDS) }
     var closedByTimeout by remember { mutableStateOf(false) }
 
+    val closeCancel: () -> Unit = {
+        Log.i("PinDialog", "closed: cancel")
+        onDismiss()
+        pinError = false
+    }
+
     LaunchedEffect(open) {
         secondsLeft = PIN_AUTO_CLOSE_SECONDS
         closedByTimeout = false
@@ -58,62 +78,64 @@ fun SettingsPinDialog(
         onDismiss()
     }
 
-    AlertDialog(
-        onDismissRequest = {
-            Log.i("PinDialog", "closed: cancel")
-            onDismiss()
-            pinError = false
-        },
-        containerColor = Color.White,
-        shape = RoundedCornerShape(10.dp),
-        title = { Text(title) },
-        text = {
-            val dialogView = LocalView.current
-            SideEffect {
-                @Suppress("DEPRECATION")
-                dialogView.rootView.systemUiVisibility =
-                    android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                        android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                        android.view.View.SYSTEM_UI_FLAG_FULLSCREEN or
-                        android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-                        android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                        android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+    BackHandler { closeCancel() }
+
+    val scrimInteraction = remember { MutableInteractionSource() }
+    val cardInteraction = remember { MutableInteractionSource() }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.45f))
+            .clickable(
+                interactionSource = scrimInteraction,
+                indication = null,
+                onClick = closeCancel,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier
+                .widthIn(max = 420.dp)
+                .background(Color.White, RoundedCornerShape(10.dp))
+                .padding(24.dp)
+                // Поглощаем тапы по карточке, чтобы они не закрывали окно
+                .clickable(interactionSource = cardInteraction, indication = null) {},
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(title, style = MaterialTheme.typography.titleLarge)
+            Spacer(modifier = Modifier.height(16.dp))
+            PinInput(
+                pin = "",
+                onPinChanged = { pinError = false },
+                onSubmit = { pin ->
+                    if (verifyPin(pin)) {
+                        pinError = false
+                        Log.i("PinDialog", "closed: success")
+                        onSuccess()
+                    } else {
+                        pinError = true
+                    }
+                },
+                error = pinError,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            // Статус отчёта закрытия: счётчик, затем «Закрыто автоматически»
+            Text(
+                text = if (closedByTimeout) "Закрыто автоматически"
+                else "Автозакрытие через $secondsLeft с",
+                fontSize = 12.sp,
+                color = Color(0xFF9E9E9E),
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextButton(onClick = closeCancel) {
+                    Text(cancelLabel)
+                }
             }
-            Column {
-                PinInput(
-                    pin = "",
-                    onPinChanged = { pinError = false },
-                    onSubmit = { pin ->
-                        if (verifyPin(pin)) {
-                            pinError = false
-                            Log.i("PinDialog", "closed: success")
-                            onSuccess()
-                        } else {
-                            pinError = true
-                        }
-                    },
-                    error = pinError,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                // Статус отчёта закрытия: счётчик, затем «Закрыто автоматически»
-                Text(
-                    text = if (closedByTimeout) "Закрыто автоматически"
-                    else "Автозакрытие через $secondsLeft с",
-                    fontSize = 12.sp,
-                    color = Color(0xFF9E9E9E),
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = {
-                Log.i("PinDialog", "closed: cancel")
-                onDismiss()
-                pinError = false
-            }) {
-                Text(cancelLabel)
-            }
-        },
-    )
+        }
+    }
 }
