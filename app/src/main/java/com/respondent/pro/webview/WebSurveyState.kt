@@ -1,8 +1,8 @@
 package com.respondent.pro.webview
 
-/** Веб-опрос включается только при явном режиме WEB и известном пути формы. */
-fun shouldUseWebSurvey(surveyMode: String?, surveyPath: String?): Boolean =
-    surveyMode == "WEB" && !surveyPath.isNullOrBlank()
+/** Веб-опрос включается только у привязанного планшета и при известном пути формы. */
+fun shouldUseWebSurvey(isBoundToCabinet: Boolean, surveyMode: String?, surveyPath: String?): Boolean =
+    isBoundToCabinet && surveyMode == "WEB" && !surveyPath.isNullOrBlank()
 
 /**
  * Логика веб-опроса на нативной стороне: последнее состояние страницы и решение,

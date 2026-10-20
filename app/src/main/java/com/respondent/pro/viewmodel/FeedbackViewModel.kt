@@ -43,6 +43,9 @@ class FeedbackViewModel @Inject constructor(
         }
     }
 
+    /** Привязан ли планшет к кабинету (локальный статус привязки). */
+    fun isBoundToCabinet(): Boolean = bindingStorage.read() != null
+
     // --- Веб-опрос в WebView (срез 4) ---
     private val webState = WebSurveyState()
 

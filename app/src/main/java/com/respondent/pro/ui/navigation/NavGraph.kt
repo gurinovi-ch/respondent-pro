@@ -49,14 +49,19 @@ fun NavGraph() {
     val settings by feedbackViewModel.settings.collectAsState()
     val strings = LocalAppStrings.current
 
-    // Срез 4: веб-опрос в WebView. Откат — surveyMode=APK на планшете.
+    // Срез 4: веб-опрос в WebView. Режим определяется привязкой к кабинету
+    // и привязанной формой; откат — отвязка планшета или формы.
     var webFailed by remember { mutableStateOf(false) }
     var keyboardVisible by remember { mutableStateOf(false) }
     var reloadKey by remember { mutableIntStateOf(0) }
     var webTimerKey by remember { mutableIntStateOf(0) }
     var webShowPin by remember { mutableStateOf(false) }
     var webRef by remember { mutableStateOf<WebView?>(null) }
-    val webEnabled = shouldUseWebSurvey(settings.surveyMode, settings.surveyPath) && !webFailed
+    val webEnabled = shouldUseWebSurvey(
+        feedbackViewModel.isBoundToCabinet(),
+        settings.surveyMode,
+        settings.surveyPath,
+    ) && !webFailed
 
     // Таймер в веб-режиме: «неполный» из последнего состояния страницы + перезагрузка
     val onWebReset: () -> Unit = {

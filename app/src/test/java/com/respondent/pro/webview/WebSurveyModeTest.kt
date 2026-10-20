@@ -9,12 +9,13 @@ import org.junit.Test
 class WebSurveyModeTest {
 
     @Test
-    fun `web-опрос только при WEB и непустом пути`() {
-        assertTrue(shouldUseWebSurvey("WEB", "/survey/form/abcdef123456"))
-        assertFalse(shouldUseWebSurvey("WEB", null))
-        assertFalse(shouldUseWebSurvey("WEB", ""))
-        assertFalse(shouldUseWebSurvey("APK", "/survey/form/abcdef123456"))
-        assertFalse(shouldUseWebSurvey(null, null))
+    fun `web-опрос только у привязанного планшета с WEB и непустым путём`() {
+        assertTrue(shouldUseWebSurvey(true, "WEB", "/survey/form/abcdef123456"))
+        assertFalse(shouldUseWebSurvey(false, "WEB", "/survey/form/abcdef123456"))
+        assertFalse(shouldUseWebSurvey(true, "WEB", null))
+        assertFalse(shouldUseWebSurvey(true, "WEB", ""))
+        assertFalse(shouldUseWebSurvey(true, "APK", "/survey/form/abcdef123456"))
+        assertFalse(shouldUseWebSurvey(false, null, null))
     }
 
     @Test
