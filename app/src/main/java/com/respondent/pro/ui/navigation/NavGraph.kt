@@ -137,16 +137,24 @@ fun NavGraph() {
                         modifier = Modifier.align(Alignment.TopStart).padding(20.dp),
                     )
                 }
+                // Закрытие окна PIN (успех/отмена/таймаут) — полное обновление контента:
+                // перезагрузка страницы + свежие параметры формы
+                val closeWebPin: () -> Unit = {
+                    webShowPin = false
+                    reloadKey++
+                    webTimerKey++
+                    feedbackViewModel.refreshDeviceParams()
+                }
                 SettingsPinDialog(
                     open = webShowPin,
                     title = strings.pinDialogTitle,
                     cancelLabel = strings.btnCancel,
                     verifyPin = feedbackViewModel::verifyPin,
                     onSuccess = {
-                        webShowPin = false
+                        closeWebPin()
                         navController.navigate(Screen.Settings.route)
                     },
-                    onDismiss = { webShowPin = false },
+                    onDismiss = closeWebPin,
                 )
             } else {
                 FeedbackScreen(
