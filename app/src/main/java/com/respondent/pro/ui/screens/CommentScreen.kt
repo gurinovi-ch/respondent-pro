@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -61,6 +62,7 @@ fun CommentScreen(
                 text = settings.commentHint.ifEmpty { strings.defaultCommentHint },
                 fontSize = 32.sp,
                 lineHeight = 32.sp,
+                fontWeight = FontWeight.SemiBold,
                 color = TextPrimary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier

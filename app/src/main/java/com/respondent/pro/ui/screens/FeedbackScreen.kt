@@ -14,6 +14,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -125,19 +126,20 @@ fun FeedbackScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(48.dp))
 
                 // Call to action
                 Text(
                     text = settings.callToAction.ifEmpty { strings.defaultCallToAction },
                     fontSize = ctaSize.sp,
                     lineHeight = ctaSize.sp,
+                    fontWeight = FontWeight.SemiBold,
                     color = TextPrimary,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Spacer(modifier = Modifier.height(gap.dp))
+                Spacer(modifier = Modifier.height((gap * 2).dp))
 
                 // Star rating — 80% ширины экрана, волна до выбора оценки
                 StarRating(
@@ -146,7 +148,7 @@ fun FeedbackScreen(
                     maxStarSize = if (isLandscape) STAR_MAX_LANDSCAPE_DP.dp else null
                 )
 
-                Spacer(modifier = Modifier.height(gap.dp))
+                Spacer(modifier = Modifier.height((gap * 2).dp))
 
                 // Done button — 40% ширины экрана (0.5 от блока 80%)
                 androidx.compose.material3.Button(
