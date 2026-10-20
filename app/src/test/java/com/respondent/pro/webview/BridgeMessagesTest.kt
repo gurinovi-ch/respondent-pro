@@ -2,6 +2,7 @@ package com.respondent.pro.webview
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BridgeMessagesTest {
@@ -39,6 +40,35 @@ class BridgeMessagesTest {
             BridgeIncoming.Keyboard(true),
             parseBridgeMessage("""{"type":"keyboard","payload":{"visible":true}}"""),
         )
+    }
+
+    @Test
+    fun `state - рейтинг вне диапазона приводится к 0…5`() {
+        assertEquals(
+            BridgeIncoming.State(0, "", null),
+            parseBridgeMessage("""{"type":"state","payload":{"rating":-3,"comment":"","startedAt":null}}"""),
+        )
+        assertEquals(
+            BridgeIncoming.State(5, "", null),
+            parseBridgeMessage("""{"type":"state","payload":{"rating":9,"comment":"","startedAt":null}}"""),
+        )
+    }
+
+    @Test
+    fun `keyboard без visible - false`() {
+        assertEquals(
+            BridgeIncoming.Keyboard(false),
+            parseBridgeMessage("""{"type":"keyboard","payload":{}}"""),
+        )
+    }
+
+    @Test
+    fun `feedback без startedAt - подставляется текущее время`() {
+        val before = System.currentTimeMillis()
+        val msg = parseBridgeMessage(
+            """{"type":"feedback","payload":{"rating":4,"text":"","clientKey":"k"}}""",
+        ) as BridgeIncoming.Feedback
+        assertTrue(msg.startedAt >= before)
     }
 
     @Test

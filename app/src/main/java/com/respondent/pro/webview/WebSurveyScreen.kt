@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,12 +64,36 @@ fun WebSurveyScreen(
 ) {
     val url = surveyUrl(surveyPath)
     if (url == null) {
-        onLoadFailed()
+        // Побочный эффект — не в теле композиции: иначе колбэк срабатывает на каждой рекомпозиции
+        LaunchedEffect(Unit) { onLoadFailed() }
         return
     }
     val webRef = remember { mutableStateOf<WebView?>(null) }
     val swNudged = remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    // WebView держит нативный Chromium: при уходе с экрана освобождаем явно
+    DisposableEffect(Unit) {
+        onDispose {
+            val view = webRef.value
+            webRef.value = null
+            view?.let {
+                (it.parent as? android.view.ViewGroup)?.removeView(it)
+                it.destroy()
+            }
+        }
+    }
+
+    // Смена привязки формы (surveyPath) — грузим новый URL без перезапуска приложения.
+    // Первый запуск уже сделан во factory, поэтому реагируем только на изменение.
+    var loadedUrl by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(url) {
+        if (loadedUrl != null && loadedUrl != url) {
+            Log.i(TAG, "url changed -> $url")
+            webRef.value?.loadUrl(url)
+        }
+        loadedUrl = url
+    }
 
     // Перезагрузка страницы после таймера (счётчик меняет родитель)
     LaunchedEffect(reloadKey) {
