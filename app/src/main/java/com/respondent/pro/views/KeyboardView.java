@@ -1,15 +1,19 @@
 package com.respondent.pro.views;
 
 import android.content.Context;
+import android.graphics.Typeface;
 import android.text.Editable;
 import android.text.InputType;
 import android.util.AttributeSet;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.TextView;
 
 import androidx.core.content.ContextCompat;
+import androidx.core.content.res.ResourcesCompat;
 
 import com.respondent.pro.R;
 
@@ -105,6 +109,7 @@ public class KeyboardView extends FrameLayout implements View.OnClickListener {
     }
 
     private void initViews() {
+        applyTypeface(this, ResourcesCompat.getFont(getContext(), R.font.gilroy_semibold));
         for (int keyId : rusTextKeys) {
             $(keyId).setOnClickListener(this);
         }
@@ -122,6 +127,19 @@ public class KeyboardView extends FrameLayout implements View.OnClickListener {
         }
         for (int keyId : numSystemKeys) {
             $(keyId).setOnClickListener(this);
+        }
+    }
+
+    private void applyTypeface(View view, Typeface typeface) {
+        if (typeface == null) return;
+        if (view instanceof TextView) {
+            ((TextView) view).setTypeface(typeface);
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                applyTypeface(group.getChildAt(i), typeface);
+            }
         }
     }
 
@@ -209,13 +227,13 @@ public class KeyboardView extends FrameLayout implements View.OnClickListener {
     }
 
     private void disableCapsLock() {
-        Button b = $(currentShiftKey);
+        View b = $(currentShiftKey);
         isShiftLong = false;
         b.setBackground(ContextCompat.getDrawable(getContext(), R.drawable.keyboard_button_system_bg));
     }
 
     private void enableCapsLock() {
-        Button b = $(currentShiftKey);
+        View b = $(currentShiftKey);
         isShiftLong = true;
         b.setBackground(ContextCompat.getDrawable(getContext(), R.drawable.keyboard_button_shift_pressed_bg));
     }

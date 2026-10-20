@@ -3,8 +3,7 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:minHeight="@dimen/kb_max_height"
-    android:padding="@dimen/kb_general_padding"
-    android:background="#F5F5F5">
+    android:padding="@dimen/kb_general_padding">
 
     <LinearLayout
         android:id="@+id/english_keyboard"
@@ -110,11 +109,11 @@
             android:orientation="horizontal"
             android:layout_width="match_parent"
             android:layout_height="@dimen/kb_row_height">
-            <Button
+            <ImageButton
                 android:id="@+id/t_eng_shift"
-                style="@style/keyboard_system_button"
+                style="@style/keyboard_icon_button"
                 android:layout_weight="1.5"
-                android:text="⇧"/>
+                android:src="@drawable/ic_kb_shift"/>
             <Button
                 android:id="@+id/t_eng_z"
                 style="@style/keyboard_text_button"
@@ -144,11 +143,11 @@
                 style="@style/keyboard_text_button"
                 android:text="m"/>
 
-            <Button
+            <ImageButton
                 android:id="@+id/t_eng_backspace"
-                style="@style/keyboard_system_button"
+                style="@style/keyboard_icon_button"
                 android:layout_weight="1.5"
-                android:text="⌫"/>
+                android:src="@drawable/ic_kb_delete"/>
         </LinearLayout>
         <LinearLayout
             android:orientation="horizontal"
@@ -173,7 +172,6 @@
                 android:id="@+id/t_eng_space"
                 style="@style/keyboard_text_button"
                 android:text=" "
-                android:drawableBottom="@drawable/ic_keyboard_space"
                 android:layout_weight="3.15"/>
             <Button
                 android:id="@+id/t_eng_dot"
@@ -183,11 +181,11 @@
                 android:id="@+id/t_eng_at"
                 style="@style/keyboard_text_button"
                 android:text="\@"/>
-            <Button
+            <ImageButton
                 android:id="@+id/t_eng_enter"
-                style="@style/keyboard_system_button"
+                style="@style/keyboard_icon_button"
                 android:layout_weight="1.5"
-                android:text="↵"/>
+                android:src="@drawable/ic_kb_enter"/>
         </LinearLayout>
     </LinearLayout>
 
@@ -311,10 +309,10 @@
             android:orientation="horizontal"
             android:layout_width="match_parent"
             android:layout_height="@dimen/kb_row_height">
-            <Button
+            <ImageButton
                 android:id="@+id/t_rus_shift"
-                style="@style/keyboard_system_button"
-                android:text="⇧"/>
+                style="@style/keyboard_icon_button"
+                android:src="@drawable/ic_kb_shift"/>
             <Button
                 android:id="@+id/t_rus_z"
                 style="@style/keyboard_text_button"
@@ -352,10 +350,10 @@
                 style="@style/keyboard_text_button"
                 android:text="ю"/>
 
-            <Button
+            <ImageButton
                 android:id="@+id/t_rus_backspace"
-                style="@style/keyboard_system_button"
-                android:text="⌫"/>
+                style="@style/keyboard_icon_button"
+                android:src="@drawable/ic_kb_delete"/>
         </LinearLayout>
         <LinearLayout
             android:orientation="horizontal"
@@ -380,7 +378,6 @@
                 android:id="@+id/t_rus_space"
                 style="@style/keyboard_text_button"
                 android:text=" "
-                android:drawableBottom="@drawable/ic_keyboard_space"
                 android:layout_weight="3.5"/>
             <Button
                 android:id="@+id/t_rus_dot"
@@ -392,11 +389,11 @@
                 <!--android:text="{fa-level-down}"-->
                 <!--android:rotation="90"-->
                 <!--android:layout_weight="1.75"/>-->
-            <Button
+            <ImageButton
                 android:id="@+id/t_rus_enter"
-                style="@style/keyboard_system_button"
+                style="@style/keyboard_icon_button"
                 android:layout_weight="1.75"
-                android:text="↵"/>
+                android:src="@drawable/ic_kb_enter"/>
 
         </LinearLayout>
     </LinearLayout>
@@ -412,22 +409,6 @@
             android:layout_width="match_parent"
             android:layout_height="@dimen/kb_row_height">
             <Button
-                android:id="@+id/t_num_bang"
-                style="@style/keyboard_text_button"
-                android:text="!"/>
-            <Button
-                android:id="@+id/t_num_at"
-                style="@style/keyboard_text_button"
-                android:text="\@"/>
-            <Button
-                android:id="@+id/t_num_sharp"
-                style="@style/keyboard_text_button"
-                android:text="#"/>
-            <Button
-                android:id="@+id/t_num_plus"
-                style="@style/keyboard_text_button"
-                android:text="+"/>
-            <Button
                 android:id="@+id/t_num_1"
                 style="@style/keyboard_text_button"
                 android:text="1"/>
@@ -440,43 +421,6 @@
                 style="@style/keyboard_text_button"
                 android:text="3"/>
             <Button
-                android:id="@+id/t_num_asterisk"
-                style="@style/keyboard_text_button"
-                android:text="*"/>
-            <Button
-                android:id="@+id/t_num_amp"
-                style="@style/keyboard_text_button"
-                android:text="&amp;"/>
-            <Button
-                android:id="@+id/t_num_open_paren"
-                style="@style/keyboard_text_button"
-                android:text="("/>
-            <Button
-                android:id="@+id/t_close_paren"
-                style="@style/keyboard_text_button"
-                android:text=")"/>
-        </LinearLayout>
-        <LinearLayout
-            android:orientation="horizontal"
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/kb_row_height">
-            <Button
-                android:id="@+id/t_num_til"
-                style="@style/keyboard_text_button"
-                android:text="~"/>
-            <Button
-                android:id="@+id/t_num_hat"
-                style="@style/keyboard_text_button"
-                android:text="&#94;"/>
-            <Button
-                android:id="@+id/t_num_am"
-                style="@style/keyboard_text_button"
-                android:text="%"/>
-            <Button
-                android:id="@+id/t_num_minus"
-                style="@style/keyboard_text_button"
-                android:text="-"/>
-            <Button
                 android:id="@+id/t_num_4"
                 style="@style/keyboard_text_button"
                 android:text="4"/>
@@ -488,44 +432,6 @@
                 android:id="@+id/t_num_6"
                 style="@style/keyboard_text_button"
                 android:text="6"/>
-            <Button
-                android:id="@+id/t_num_slash"
-                style="@style/keyboard_text_button"
-                android:text="/"/>
-            <Button
-                android:id="@+id/t_num_colon"
-                style="@style/keyboard_text_button"
-                android:text=":"/>
-            <Button
-                android:id="@+id/t_num_semicolon"
-                style="@style/keyboard_text_button"
-                android:text=";"/>
-            <Button
-                android:id="@+id/t_num_quote"
-                style="@style/keyboard_text_button"
-                android:text="&quot;"/>
-        </LinearLayout>
-        <LinearLayout
-            android:orientation="horizontal"
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/kb_row_height">
-            <ImageButton
-                android:id="@+id/t_num_back"
-                style="@style/keyboard_system_button"
-                android:tint="@android:color/white"
-                android:src="@drawable/ic_browser_back"/>
-            <Button
-                android:id="@+id/t_num_angle_bracket_left"
-                style="@style/keyboard_text_button"
-                android:text="&lt;"/>
-            <Button
-                android:id="@+id/t_num_angle_bracket_right"
-                style="@style/keyboard_text_button"
-                android:text="&gt;"/>
-            <Button
-                android:id="@+id/t_num_equals"
-                style="@style/keyboard_text_button"
-                android:text="="/>
             <Button
                 android:id="@+id/t_num_7"
                 style="@style/keyboard_text_button"
@@ -543,17 +449,107 @@
                 style="@style/keyboard_text_button"
                 android:text="0"/>
             <Button
+                android:id="@+id/t_num_equals"
+                style="@style/keyboard_text_button"
+                android:text="="/>
+        </LinearLayout>
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/kb_row_height">
+            <Button
+                android:id="@+id/t_num_bang"
+                style="@style/keyboard_text_button"
+                android:text="!"/>
+            <Button
+                android:id="@+id/t_num_at"
+                style="@style/keyboard_text_button"
+                android:text="\@"/>
+            <Button
+                android:id="@+id/t_num_sharp"
+                style="@style/keyboard_text_button"
+                android:text="#"/>
+            <Button
+                android:id="@+id/t_num_am"
+                style="@style/keyboard_text_button"
+                android:text="%"/>
+            <Button
+                android:id="@+id/t_num_hat"
+                style="@style/keyboard_text_button"
+                android:text="&#94;"/>
+            <Button
+                android:id="@+id/t_num_amp"
+                style="@style/keyboard_text_button"
+                android:text="&amp;"/>
+            <Button
+                android:id="@+id/t_num_asterisk"
+                style="@style/keyboard_text_button"
+                android:text="*"/>
+            <Button
+                android:id="@+id/t_num_open_paren"
+                style="@style/keyboard_text_button"
+                android:text="("/>
+            <Button
+                android:id="@+id/t_close_paren"
+                style="@style/keyboard_text_button"
+                android:text=")"/>
+            <Button
+                android:id="@+id/t_num_minus"
+                style="@style/keyboard_text_button"
+                android:text="-"/>
+            <Button
+                android:id="@+id/t_num_plus"
+                style="@style/keyboard_text_button"
+                android:text="+"/>
+        </LinearLayout>
+        <LinearLayout
+            android:orientation="horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/kb_row_height">
+            <ImageButton
+                android:id="@+id/t_num_back"
+                style="@style/keyboard_icon_button"
+                android:src="@drawable/ic_kb_back"/>
+            <Button
+                android:id="@+id/t_num_til"
+                style="@style/keyboard_text_button"
+                android:text="~"/>
+            <Button
+                android:id="@+id/t_num_quote"
+                style="@style/keyboard_text_button"
+                android:text="&quot;"/>
+            <Button
+                android:id="@+id/t_num_colon"
+                style="@style/keyboard_text_button"
+                android:text=":"/>
+            <Button
+                android:id="@+id/t_num_semicolon"
+                style="@style/keyboard_text_button"
+                android:text=";"/>
+            <Button
+                android:id="@+id/t_num_angle_bracket_left"
+                style="@style/keyboard_text_button"
+                android:text="&lt;"/>
+            <Button
+                android:id="@+id/t_num_angle_bracket_right"
+                style="@style/keyboard_text_button"
+                android:text="&gt;"/>
+            <Button
                 android:id="@+id/t_num_underscore"
                 style="@style/keyboard_text_button"
                 android:text="_"/>
             <Button
+                android:id="@+id/t_num_slash"
+                style="@style/keyboard_text_button"
+                android:text="/"/>
+            <Button
                 android:id="@+id/t_num_question"
                 style="@style/keyboard_text_button"
                 android:text="\?"/>
-            <Button
+            <ImageButton
                 android:id="@+id/t_num_backspace"
-                style="@style/keyboard_system_button"
-                android:text="⌫"/>
+                style="@style/keyboard_icon_button"
+                android:src="@drawable/ic_kb_delete"/>
         </LinearLayout>
         <LinearLayout
             android:orientation="horizontal"
@@ -573,17 +569,16 @@
                 android:id="@+id/t_num_space"
                 style="@style/keyboard_text_button"
                 android:text=" "
-                android:drawableBottom="@drawable/ic_keyboard_space"
                 android:layout_weight="3.5"/>
             <Button
                 android:id="@+id/t_num_dot"
                 style="@style/keyboard_text_button"
                 android:text="."/>
-            <Button
+            <ImageButton
                 android:id="@+id/t_num_enter"
-                style="@style/keyboard_system_button"
+                style="@style/keyboard_icon_button"
                 android:layout_weight="2.75"
-                android:text="↵"/>
+                android:src="@drawable/ic_kb_enter"/>
         </LinearLayout>
     </LinearLayout>
 </FrameLayout>

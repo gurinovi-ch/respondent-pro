@@ -21,12 +21,21 @@
         <item name="android:minWidth">0dp</item>
         <item name="android:minHeight">0dp</item>
         <item name="android:padding">2dp</item>
+        <!-- Плоские клавиши: без Material-тени (stateListAnimator/elevation) -->
+        <item name="android:stateListAnimator">@null</item>
+        <item name="android:elevation">0dp</item>
     </style>
 
     <style name="keyboard_system_button" parent="keyboard_button">
         <item name="android:background">@drawable/keyboard_button_system_bg</item>
         <item name="android:textColor">@android:color/white</item>
         <item name="android:textSize">@dimen/kb_btn_system_size</item>
+    </style>
+
+    <!-- Клавиша-иконка (Font Awesome): вектор по центру, без растягивания -->
+    <style name="keyboard_icon_button" parent="keyboard_system_button">
+        <item name="android:padding">10dp</item>
+        <item name="android:scaleType">centerInside</item>
     </style>
 
     <!-- NB: android:tag="letter_button" is how KeyboardView detects a character key -->
