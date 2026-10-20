@@ -8,20 +8,29 @@ import android.webkit.WebChromeClient
 import android.webkit.ConsoleMessage
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import com.respondent.pro.cabinet.KabinetConfig
+import kotlinx.coroutines.launch
 
 private const val TAG = "WebSurvey"
 const val BRIDGE_OBJECT = "RespondentBridge"
@@ -67,9 +76,16 @@ fun WebSurveyScreen(
         if (reloadKey > 0) webRef.value?.reload()
     }
 
-    Column(Modifier.fillMaxSize()) {
+    // Футер (клавиатура + таймер) прижат к нижнему краю экрана, WebView занимает
+    // оставшуюся высоту. Высоту футера измеряем, а не угадываем: клавиатура —
+    // 4 ряда + отступы из ресурсов (на планшете 284 dp).
+    val density = LocalDensity.current.density
+    var footerHeight by remember { mutableStateOf(0.dp) }
+    Box(Modifier.fillMaxSize()) {
         AndroidView(
-            modifier = Modifier.fillMaxWidth().weight(1f),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = footerHeight),
             factory = { context ->
                 WebView(context).apply {
                     settings.javaScriptEnabled = true
@@ -157,6 +173,14 @@ fun WebSurveyScreen(
                 }
             },
         )
-        footer()
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .onSizeChanged { footerHeight = (it.height / density).dp },
+        ) {
+            footer()
+        }
     }
 }
