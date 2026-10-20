@@ -11,7 +11,9 @@ import android.os.BatteryManager
 import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Settings
@@ -80,33 +82,40 @@ fun SystemIndicators(
         onDispose { context.unregisterReceiver(receiver) }
     }
 
-    Row(
-        modifier = modifier.clickable(onClick = onSettingsClick),
-        // Top, а не Center: иначе минимальная touch-зона 48dp центрирует иконки
-        // и отступ сверху выходит больше бокового (требование — ровно 20dp).
-        verticalAlignment = Alignment.Top,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    // Кликабельная зона — 48dp (палец), содержимое прижато к верху: визуально
+    // иконки стоят ровно в 20dp от верхнего и левого краёв.
+    Box(
+        modifier = modifier.clickable(onClick = onSettingsClick).height(48.dp),
+        contentAlignment = Alignment.TopStart,
     ) {
-        Icon(
-            imageVector = if (hasInternet) Icons.Outlined.Wifi else Icons.Outlined.WifiOff,
-            contentDescription = null,
-            tint = TextSecondary.copy(alpha = 0.5f),
-            modifier = Modifier.size(12.dp)
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = if (hasInternet) Icons.Outlined.Wifi else Icons.Outlined.WifiOff,
+                contentDescription = null,
+                tint = TextSecondary.copy(alpha = 0.5f),
+                modifier = Modifier.size(12.dp)
+            )
 
-        if (batteryPercent >= 0) {
-            Text(
-                text = "$batteryPercent%",
-                fontSize = 8.sp,
-                color = TextSecondary.copy(alpha = 0.5f)
+            if (batteryPercent >= 0) {
+                Text(
+                    text = "$batteryPercent%",
+                    fontSize = 8.sp,
+                    // Свой lineHeight: иначе наследуется 24sp от Material-стиля,
+                    // строка раздувается и иконки центрируются ниже отступа.
+                    lineHeight = 10.sp,
+                    color = TextSecondary.copy(alpha = 0.5f)
+                )
+            }
+
+            Icon(
+                imageVector = Icons.Outlined.Settings,
+                contentDescription = null,
+                tint = TextSecondary.copy(alpha = 0.5f),
+                modifier = Modifier.size(12.dp)
             )
         }
-
-        Icon(
-            imageVector = Icons.Outlined.Settings,
-            contentDescription = null,
-            tint = TextSecondary.copy(alpha = 0.5f),
-            modifier = Modifier.size(12.dp)
-        )
     }
 }
