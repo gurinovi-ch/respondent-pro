@@ -128,13 +128,13 @@ fun NavGraph() {
                             )
                         },
                     )
-                    // Служебные иконки (PIN) — поверх WebView в правом верхнем углу
+                    // Служебные иконки (PIN) — поверх WebView в левом верхнем углу
                     SystemIndicators(
                         onSettingsClick = {
                             webShowPin = true
                             webTimerKey++
                         },
-                        modifier = Modifier.align(Alignment.TopEnd).padding(20.dp),
+                        modifier = Modifier.align(Alignment.TopStart).padding(20.dp),
                     )
                 }
                 SettingsPinDialog(
