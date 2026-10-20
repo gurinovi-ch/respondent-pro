@@ -17,8 +17,11 @@ import com.respondent.pro.webview.WebSurveyState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -43,8 +46,10 @@ class FeedbackViewModel @Inject constructor(
         }
     }
 
-    /** Привязан ли планшет к кабинету (локальный статус привязки). */
-    fun isBoundToCabinet(): Boolean = bindingStorage.read() != null
+    /** Привязан ли планшет к кабинету — реактивно, чтобы отвязка сразу давала нативный режим. */
+    val isBound: StateFlow<Boolean> = bindingStorage.observe()
+        .map { it != null }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, bindingStorage.read() != null)
 
     // --- Веб-опрос в WebView (срез 4) ---
     private val webState = WebSurveyState()

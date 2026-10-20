@@ -5,6 +5,9 @@ import android.content.SharedPreferences
 import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 
 data class StoredBinding(
     val apiKey: String,
@@ -19,6 +22,9 @@ interface BindingStorage {
     fun read(): StoredBinding?
     fun write(binding: StoredBinding)
     fun clear()
+
+    /** Реактивный статус привязки: UI переключает веб/нативный режим без рестарта. */
+    fun observe(): Flow<StoredBinding?> = flowOf(read())
 }
 
 /**
@@ -29,6 +35,10 @@ interface BindingStorage {
  * логируется и деградирует (null / no-op), но не роняет приложение.
  */
 class EncryptedBindingStorage(private val prefs: SharedPreferences) : BindingStorage {
+
+    private val state = MutableStateFlow(read())
+
+    override fun observe(): Flow<StoredBinding?> = state
 
     override fun read(): StoredBinding? = try {
         val apiKey = prefs.getString(KEY_API, null)
@@ -57,6 +67,7 @@ class EncryptedBindingStorage(private val prefs: SharedPreferences) : BindingSto
                 .putString(KEY_ORG_NAME, binding.organizationName)
                 .putString(KEY_POINT, binding.pointName)
                 .apply()
+            state.value = binding
         } catch (e: Exception) {
             Log.e(TAG, "binding write failed", e)
         }
@@ -65,6 +76,7 @@ class EncryptedBindingStorage(private val prefs: SharedPreferences) : BindingSto
     override fun clear() {
         try {
             prefs.edit().clear().apply()
+            state.value = null
         } catch (e: Exception) {
             Log.e(TAG, "binding clear failed", e)
         }

@@ -1,6 +1,8 @@
 package com.respondent.pro.cabinet
 
 import android.content.SharedPreferences
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -67,6 +69,18 @@ class BindingStorageTest {
 
         storage.clear()
         assertNull(storage.read())
+    }
+
+    @Test
+    fun `observe reflects write and clear`() = runBlocking {
+        val storage = EncryptedBindingStorage(fakePrefs())
+        assertNull(storage.observe().first())
+
+        storage.write(StoredBinding("rpro_k", "t1", "o1", "ООО", "Точка"))
+        assertEquals("rpro_k", storage.observe().first()?.apiKey)
+
+        storage.clear()
+        assertNull(storage.observe().first())
     }
 
     @Test

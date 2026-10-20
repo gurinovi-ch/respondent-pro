@@ -47,6 +47,7 @@ fun NavGraph() {
 
     var currentRating by remember { mutableIntStateOf(0) }
     val settings by feedbackViewModel.settings.collectAsState()
+    val isBound by feedbackViewModel.isBound.collectAsState()
     val strings = LocalAppStrings.current
 
     // Срез 4: веб-опрос в WebView. Режим определяется привязкой к кабинету
@@ -58,7 +59,7 @@ fun NavGraph() {
     var webShowPin by remember { mutableStateOf(false) }
     var webRef by remember { mutableStateOf<WebView?>(null) }
     val webEnabled = shouldUseWebSurvey(
-        feedbackViewModel.isBoundToCabinet(),
+        isBound,
         settings.surveyMode,
         settings.surveyPath,
     ) && !webFailed
