@@ -82,7 +82,9 @@ fun SystemIndicators(
 
     Row(
         modifier = modifier.clickable(onClick = onSettingsClick),
-        verticalAlignment = Alignment.CenterVertically,
+        // Top, а не Center: иначе минимальная touch-зона 48dp центрирует иконки
+        // и отступ сверху выходит больше бокового (требование — ровно 20dp).
+        verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Icon(
