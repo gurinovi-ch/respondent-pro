@@ -12,6 +12,7 @@ import com.respondent.pro.cabinet.BindingStorage
 import com.respondent.pro.cabinet.CabinetApi
 import com.respondent.pro.cabinet.DeviceParamsSync
 import com.respondent.pro.cabinet.DeviceTelemetryReporter
+import com.respondent.pro.standalone.StandaloneReporter
 import com.respondent.pro.webview.BridgeIncoming
 import com.respondent.pro.webview.WebSurveyState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -33,6 +34,7 @@ class FeedbackViewModel @Inject constructor(
     private val cabinetApi: CabinetApi,
     private val bindingStorage: BindingStorage,
     private val telemetryReporter: DeviceTelemetryReporter,
+    private val standaloneReporter: StandaloneReporter,
 ) : ViewModel() {
 
     private val deviceParamsSync = DeviceParamsSync(cabinetApi, bindingStorage) { p, mode, path ->
@@ -118,6 +120,7 @@ class FeedbackViewModel @Inject constructor(
     private var hasStartedRating = false
 
     init {
+        standaloneReporter.start()
         viewModelScope.launch {
             settingsRepository.settings.collect { _settings.value = it }
         }

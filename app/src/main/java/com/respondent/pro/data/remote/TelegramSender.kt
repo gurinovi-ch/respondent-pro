@@ -4,6 +4,7 @@ import android.util.Log
 import com.respondent.pro.data.local.FeedbackDao
 import com.respondent.pro.data.model.Feedback
 import com.respondent.pro.data.repository.SettingsRepository
+import com.respondent.pro.standalone.StandaloneReporter
 import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -15,7 +16,8 @@ import javax.inject.Singleton
 class TelegramSender @Inject constructor(
     private val telegramApi: TelegramApi,
     private val feedbackDao: FeedbackDao,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val standaloneReporter: StandaloneReporter
 ) {
     companion object {
         private const val TAG = "TelegramSender"
@@ -46,6 +48,7 @@ class TelegramSender @Inject constructor(
             Log.d(TAG, "Telegram API response: ok=${response.ok}, desc=${response.description}")
             if (response.ok) {
                 feedbackDao.markSent(feedback.id)
+                standaloneReporter.recordActivity(feedback)
                 Log.d(TAG, "Feedback ${feedback.id} sent to Telegram ✓")
                 true
             } else {

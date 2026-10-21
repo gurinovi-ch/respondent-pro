@@ -4,6 +4,7 @@ import android.util.Log
 import com.respondent.pro.data.local.FeedbackDao
 import com.respondent.pro.data.model.Feedback
 import com.respondent.pro.data.repository.SettingsRepository
+import com.respondent.pro.standalone.StandaloneReporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -24,7 +25,8 @@ import javax.mail.internet.MimeMessage
 @Singleton
 class EmailSender @Inject constructor(
     private val feedbackDao: FeedbackDao,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val standaloneReporter: StandaloneReporter
 ) {
     companion object {
         private const val TAG = "EmailSender"
@@ -82,6 +84,7 @@ class EmailSender @Inject constructor(
                 Transport.send(message)
             }
             feedbackDao.markSent(feedback.id)
+            standaloneReporter.recordActivity(feedback)
             Log.d(TAG, "Feedback ${feedback.id} sent to email ✓")
             true
         } catch (e: Exception) {
