@@ -12,6 +12,13 @@ import com.respondent.pro.data.local.FeedbackDao
 import com.respondent.pro.data.local.MIGRATION_1_2
 import com.respondent.pro.data.local.MIGRATION_2_3
 import com.respondent.pro.data.remote.TelegramApi
+import com.respondent.pro.standalone.AndroidDeviceInfoSource
+import com.respondent.pro.standalone.CompanyNameSource
+import com.respondent.pro.standalone.DataStoreStandaloneStore
+import com.respondent.pro.standalone.DeviceInfoSource
+import com.respondent.pro.standalone.SettingsCompanyNameSource
+import com.respondent.pro.standalone.StandaloneApi
+import com.respondent.pro.standalone.StandaloneStore
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -75,4 +82,25 @@ object AppModule {
     fun provideBindingStorage(@ApplicationContext context: Context): BindingStorage {
         return EncryptedBindingStorage.create(context)
     }
+
+    @Provides
+    @Singleton
+    fun provideStandaloneStore(impl: DataStoreStandaloneStore): StandaloneStore = impl
+
+    @Provides
+    @Singleton
+    fun provideDeviceInfoSource(impl: AndroidDeviceInfoSource): DeviceInfoSource = impl
+
+    @Provides
+    @Singleton
+    fun provideCompanyNameSource(impl: SettingsCompanyNameSource): CompanyNameSource = impl
+
+    @Provides
+    @Singleton
+    fun provideStandaloneApi(): StandaloneApi =
+        Retrofit.Builder()
+            .baseUrl(KabinetConfig.BASE_URL)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(StandaloneApi::class.java)
 }
