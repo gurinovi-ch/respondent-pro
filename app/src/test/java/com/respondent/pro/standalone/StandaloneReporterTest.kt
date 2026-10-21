@@ -101,4 +101,26 @@ class StandaloneReporterTest {
         assertEquals(5, api.lastBody?.activities?.first()?.rating)
         assertFalse(store.events.isNotEmpty())
     }
+
+    @Test
+    fun `при привязке событие не ставится в очередь`() = runBlocking {
+        binding.value = StoredBinding("api", "t1", "org", "ООО", null)
+        val feedback = Feedback(id = 2, rating = 5, text = "", clientKey = UUID.randomUUID().toString())
+        reporter().recordActivity(feedback)
+        assertFalse(store.events.isNotEmpty())
+    }
+
+    @Test
+    fun `отвязка - снова регистрируется с сохранённой организацией`() = runBlocking {
+        store.token = "token"
+        store.lastOrg = "org-9"
+        binding.value = null
+        val r = reporter()
+        r.handleBinding(StoredBinding("api", "t1", "org-9", "ООО", null))
+        r.handleBinding(null)
+        r.checkInNow()
+
+        assertEquals("org-9", api.lastBody?.lastBoundOrganizationId)
+        assertEquals(1, api.registrations)
+    }
 }
