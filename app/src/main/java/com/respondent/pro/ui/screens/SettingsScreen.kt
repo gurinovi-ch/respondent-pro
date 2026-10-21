@@ -43,6 +43,7 @@ import com.respondent.pro.cabinet.CabinetState
 import com.respondent.pro.cabinet.FailKind
 import com.respondent.pro.kiosk.SettingsExcursionOverlay
 import com.respondent.pro.ui.i18n.AppStrings
+import com.respondent.pro.ui.components.SettingsPinDialog
 import com.respondent.pro.ui.i18n.LocalAppStrings
 import com.respondent.pro.viewmodel.ChatIdResult
 import com.respondent.pro.viewmodel.SettingsViewModel
@@ -67,6 +68,8 @@ fun SettingsScreen(
 
     var instructionsExpanded by remember { mutableStateOf(false) }
     var kioskExpanded by remember { mutableStateOf(false) }
+    var showUnbindPin by remember { mutableStateOf(false) }
+    var showDisableKioskPin by remember { mutableStateOf(false) }
     var adbExpanded by remember { mutableStateOf(false) }
     var qrExpanded by remember { mutableStateOf(false) }
     var qrSsid by remember { mutableStateOf("") }
@@ -584,9 +587,7 @@ fun SettingsScreen(
                 status = kioskStatus,
                 expanded = kioskExpanded,
                 onToggle = { kioskExpanded = !kioskExpanded },
-                onDisableKiosk = {
-                    (context as? android.app.Activity)?.let { viewModel.disableKiosk(it) }
-                },
+                onDisableKiosk = { showDisableKioskPin = true },
                 adbExpanded = adbExpanded,
                 onToggleAdb = { adbExpanded = !adbExpanded },
                 qrExpanded = qrExpanded,
@@ -614,8 +615,34 @@ fun SettingsScreen(
                 onBind = { viewModel.pairCabinet(cabinetCode) },
                 onUnbind = {
                     cabinetCode = ""
-                    viewModel.unbindCabinet()
+                    showUnbindPin = true
                 }
+            )
+
+            SettingsPinDialog(
+                open = showUnbindPin,
+                title = strings.pinDialogTitle,
+                message = strings.pinUnbindMessage,
+                cancelLabel = strings.btnCancel,
+                verifyPin = viewModel::verifyPin,
+                onSuccess = {
+                    showUnbindPin = false
+                    viewModel.unbindCabinet()
+                },
+                onDismiss = { showUnbindPin = false },
+            )
+
+            SettingsPinDialog(
+                open = showDisableKioskPin,
+                title = strings.pinDialogTitle,
+                message = strings.pinDisableKioskMessage,
+                cancelLabel = strings.btnCancel,
+                verifyPin = viewModel::verifyPin,
+                onSuccess = {
+                    showDisableKioskPin = false
+                    (context as? android.app.Activity)?.let { viewModel.disableKiosk(it) }
+                },
+                onDismiss = { showDisableKioskPin = false },
             )
 
             // Диалог с QR-изображением
@@ -930,12 +957,11 @@ private fun KioskCard(
                 modifier = Modifier.padding(top = 4.dp)
             )
 
-            // Отключение режима киоска — только при выданном Device Owner,
-            // с подтверждением (снятие DO: clearDeviceOwnerApp, без стирания данных)
+            // Отключение режима киоска — только при выданном Device Owner.
+            // Кнопка запрашивает PIN у родителя, чтобы не сработала случайно.
             if (status?.deviceOwner == true) {
-                var showDisableConfirm by remember { mutableStateOf(false) }
                 Button(
-                    onClick = { showDisableConfirm = true },
+                    onClick = onDisableKiosk,
                     modifier = Modifier.padding(top = 8.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error,
@@ -943,26 +969,6 @@ private fun KioskCard(
                     )
                 ) {
                     Text(strings.kioskDisableBtn)
-                }
-                if (showDisableConfirm) {
-                    AlertDialog(
-                        onDismissRequest = { showDisableConfirm = false },
-                        title = { Text(strings.kioskDisableTitle) },
-                        text = { Text(strings.kioskDisableMessage) },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                showDisableConfirm = false
-                                onDisableKiosk()
-                            }) {
-                                Text(strings.kioskDisableConfirm)
-                            }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showDisableConfirm = false }) {
-                                Text(strings.btnCancel)
-                            }
-                        }
-                    )
                 }
             }
 

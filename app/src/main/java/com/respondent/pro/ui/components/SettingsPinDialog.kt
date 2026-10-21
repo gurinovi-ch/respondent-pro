@@ -53,6 +53,7 @@ fun SettingsPinDialog(
     verifyPin: (String) -> Boolean,
     onSuccess: () -> Unit,
     onDismiss: () -> Unit,
+    message: String? = null,
 ) {
     if (!open) return
     var pinError by remember { mutableStateOf(false) }
@@ -104,6 +105,14 @@ fun SettingsPinDialog(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(title, style = MaterialTheme.typography.titleLarge)
+            if (message != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF413F3D),
+                )
+            }
             Spacer(modifier = Modifier.height(16.dp))
             PinInput(
                 pin = "",

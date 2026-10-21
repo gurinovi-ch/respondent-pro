@@ -32,6 +32,9 @@ import java.net.HttpURLConnection
 import java.net.URL
 import javax.inject.Inject
 
+/** PIN подтверждает действие, только если он непустой и совпадает с сохранённым. */
+fun pinMatches(input: String, saved: String): Boolean = input.isNotEmpty() && input == saved
+
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
@@ -60,9 +63,11 @@ class SettingsViewModel @Inject constructor(
         _kioskStatus.value = kioskManager.status()
     }
 
+    /** Повторная проверка PIN перед опасным действием (отвязка, снятие DO). */
+    fun verifyPin(pin: String): Boolean = pinMatches(pin, _settings.value.pinCode)
+
     /** Отключение режима киоска: Lock Task + снятие Device Owner. */
-    fun disableKiosk(activity: android.app.Activity) {
-        if (kioskManager.disableKiosk(activity)) {
+    fun disableKiosk(activity: android.app.Activity) {        if (kioskManager.disableKiosk(activity)) {
             refreshKioskStatus()
         }
     }
