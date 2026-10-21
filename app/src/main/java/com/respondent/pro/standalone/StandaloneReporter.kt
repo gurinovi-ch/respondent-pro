@@ -86,28 +86,35 @@ class StandaloneReporter @Inject constructor(
         if (bindingStorage.read() != null) return@withLock
         val token = ensureToken() ?: return@withLock
         val info = deviceInfo.info()
-        val body = CheckInRequest(
-            companyName = companyName.companyName().ifBlank { null },
+        val base = CheckInRequest(
+            companyName = companyName.companyName(),
             appVersion = info.appVersion,
             lastBoundOrganizationId = store.lastBoundOrganizationId(),
             manufacturer = info.manufacturer,
             model = info.model,
             osVersion = info.osVersion,
             sdkInt = info.sdkInt,
-            activities = store.pending(),
         )
-        try {
-            api.checkIn(token, body)
-            store.removePending(body.activities.map { it.clientKey }.toSet())
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: HttpException) {
-            if (e.code() == 401) store.clearToken()
-            Log.i(TAG, "check-in failed: HTTP ${e.code()}")
-        } catch (e: IOException) {
-            Log.i(TAG, "check-in network error")
-        } catch (e: Exception) {
-            Log.i(TAG, "check-in unexpected error", e)
+        val chunks = store.pending().chunked(100).ifEmpty { listOf(emptyList()) }
+        for (chunk in chunks) {
+            try {
+                api.checkIn(token, base.copy(activities = chunk))
+                if (chunk.isNotEmpty()) {
+                    store.removePending(chunk.map { it.clientKey }.toSet())
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: HttpException) {
+                if (e.code() == 401) store.clearToken()
+                Log.i(TAG, "check-in failed: HTTP ${e.code()}")
+                return@withLock
+            } catch (e: IOException) {
+                Log.i(TAG, "check-in network error")
+                return@withLock
+            } catch (e: Exception) {
+                Log.i(TAG, "check-in unexpected error", e)
+                return@withLock
+            }
         }
     }
 
@@ -131,7 +138,7 @@ class StandaloneReporter @Inject constructor(
             val token = api.register(
                 RegisterRequest(
                     installId = store.installId(),
-                    companyName = companyName.companyName().ifBlank { null },
+                    companyName = companyName.companyName(),
                     lastBoundOrganizationId = store.lastBoundOrganizationId(),
                     manufacturer = info.manufacturer,
                     model = info.model,

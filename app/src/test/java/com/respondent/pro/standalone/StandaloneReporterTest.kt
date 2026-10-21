@@ -4,10 +4,13 @@ import com.respondent.pro.cabinet.BindingStorage
 import com.respondent.pro.cabinet.StoredBinding
 import com.respondent.pro.data.model.Feedback
 import kotlinx.coroutines.runBlocking
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
+import retrofit2.HttpException
+import java.io.IOException
 import java.util.UUID
 
 class StandaloneReporterTest {
@@ -32,6 +35,8 @@ class StandaloneReporterTest {
         var registrations = 0
         var checkIns = 0
         var lastBody: CheckInRequest? = null
+        val checkInBodies = mutableListOf<CheckInRequest>()
+        var fail: (() -> Exception)? = null
         var token: String = "token"
         override suspend fun register(body: RegisterRequest): RegisterResponse {
             registrations++
@@ -40,6 +45,8 @@ class StandaloneReporterTest {
         override suspend fun checkIn(token: String, body: CheckInRequest): CheckInResponse {
             checkIns++
             lastBody = body
+            checkInBodies += body
+            fail?.let { throw it() }
             return CheckInResponse(true)
         }
         override suspend fun unregister(token: String): UnregisterResponse = UnregisterResponse(true)
@@ -122,5 +129,59 @@ class StandaloneReporterTest {
 
         assertEquals("org-9", api.lastBody?.lastBoundOrganizationId)
         assertEquals(1, api.registrations)
+    }
+
+    @Test
+    fun `очередь больше 100 уходит чанками по 100`() = runBlocking {
+        store.token = "token"
+        repeat(150) {
+            store.events += StandaloneEvent("key-$it", 5, "2026-10-21T10:00:00.000Z", 0)
+        }
+        reporter().checkInNow()
+
+        assertEquals(listOf(100, 50), api.checkInBodies.map { it.activities.size })
+        assertEquals(0, store.events.size)
+    }
+
+    @Test
+    fun `пустое название компании отправляется пустой строкой`() = runBlocking {
+        store.token = "token"
+        val r = StandaloneReporter(
+            api = api,
+            store = store,
+            bindingStorage = binding,
+            companyName = object : CompanyNameSource { override suspend fun companyName() = "" },
+            deviceInfo = object : DeviceInfoSource { override fun info() = device },
+        )
+        r.checkInNow()
+
+        assertEquals("", api.lastBody?.companyName)
+    }
+
+    @Test
+    fun `401 сбрасывает токен и регистрируется заново`() = runBlocking {
+        store.token = "old"
+        api.fail = {
+            HttpException(retrofit2.Response.error<Any>(401, "".toResponseBody(null)))
+        }
+        val r = reporter()
+        r.checkInNow()
+        assertNull(store.token)
+
+        api.fail = null
+        r.checkInNow()
+        assertEquals(1, api.registrations)
+        assertEquals("token", store.token)
+    }
+
+    @Test
+    fun `сетевая ошибка сохраняет событие в очередь`() = runBlocking {
+        store.token = "token"
+        api.fail = { IOException("offline") }
+        reporter().recordActivity(
+            Feedback(id = 3, rating = 4, text = "", clientKey = UUID.randomUUID().toString()),
+        )
+
+        assertEquals(1, store.events.size)
     }
 }
