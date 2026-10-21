@@ -142,6 +142,7 @@ fun SettingsScreen(
         }
     }
 
+    Box(modifier = Modifier.fillMaxSize()) {
     Column(modifier = Modifier.fillMaxSize()) {
         // Верхняя панель действий: Настройки Android (30%) + отступ (5%) +
         // Старт (65%) — занимают слот бывшей кнопки «Старт»
@@ -619,32 +620,6 @@ fun SettingsScreen(
                 }
             )
 
-            SettingsPinDialog(
-                open = showUnbindPin,
-                title = strings.pinDialogTitle,
-                message = strings.pinUnbindMessage,
-                cancelLabel = strings.btnCancel,
-                verifyPin = viewModel::verifyPin,
-                onSuccess = {
-                    showUnbindPin = false
-                    viewModel.unbindCabinet()
-                },
-                onDismiss = { showUnbindPin = false },
-            )
-
-            SettingsPinDialog(
-                open = showDisableKioskPin,
-                title = strings.pinDialogTitle,
-                message = strings.pinDisableKioskMessage,
-                cancelLabel = strings.btnCancel,
-                verifyPin = viewModel::verifyPin,
-                onSuccess = {
-                    showDisableKioskPin = false
-                    (context as? android.app.Activity)?.let { viewModel.disableKiosk(it) }
-                },
-                onDismiss = { showDisableKioskPin = false },
-            )
-
             // Диалог с QR-изображением
             qrBitmap?.let { bmp ->
                 AlertDialog(
@@ -672,6 +647,31 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
         }
+        }
+        SettingsPinDialog(
+            open = showUnbindPin,
+            title = strings.pinDialogTitle,
+            message = strings.pinUnbindMessage,
+            cancelLabel = strings.btnCancel,
+            verifyPin = viewModel::verifyPin,
+            onSuccess = {
+                showUnbindPin = false
+                viewModel.unbindCabinet()
+            },
+            onDismiss = { showUnbindPin = false },
+        )
+        SettingsPinDialog(
+            open = showDisableKioskPin,
+            title = strings.pinDialogTitle,
+            message = strings.pinDisableKioskMessage,
+            cancelLabel = strings.btnCancel,
+            verifyPin = viewModel::verifyPin,
+            onSuccess = {
+                showDisableKioskPin = false
+                (context as? android.app.Activity)?.let { viewModel.disableKiosk(it) }
+            },
+            onDismiss = { showDisableKioskPin = false },
+        )
     }
 }
 
