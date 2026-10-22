@@ -17,6 +17,7 @@ import com.respondent.pro.cabinet.CabinetState
 import com.respondent.pro.cabinet.DeviceParamsSync
 import com.respondent.pro.cabinet.FailKind
 import com.respondent.pro.cabinet.PairOutcome
+import com.respondent.pro.cabinet.PairingFlow
 import com.respondent.pro.cabinet.StoredBinding
 import com.respondent.pro.cabinet.normalizePinCode
 import com.respondent.pro.kiosk.KioskManager
@@ -94,6 +95,7 @@ class SettingsViewModel @Inject constructor(
     private val deviceParamsSync = DeviceParamsSync(cabinetApi, bindingStorage) { p, mode, path ->
         settingsRepository.applyDeviceParams(p, mode, path)
     }
+    private val pairingFlow = PairingFlow(cabinetBinder) { deviceParamsSync.fetchAndApply() }
 
     /** Состояние привязки к кабинету (инициализируется из сохранённого ключа). */
     private val _cabinetState = MutableStateFlow<CabinetState>(
@@ -125,7 +127,7 @@ class SettingsViewModel @Inject constructor(
         if (_cabinetState.value is CabinetState.Binding) return
         viewModelScope.launch {
             _cabinetState.value = CabinetState.Binding
-            val outcome = cabinetBinder.pair(rawCode)
+            val outcome = pairingFlow.pair(rawCode)
             _cabinetState.value = when (outcome) {
                 PairOutcome.PAIRED ->
                     cabinetBinder.currentBinding()?.toBound() ?: CabinetState.Unbound
@@ -136,10 +138,6 @@ class SettingsViewModel @Inject constructor(
                 PairOutcome.STORAGE_ERROR -> CabinetState.Failed(FailKind.STORAGE_ERROR)
             }
             Log.i("SettingsViewModel", "cabinet pair: $outcome")
-            if (outcome == PairOutcome.PAIRED) {
-                // PIN из кабинета должен действовать сразу, не ждём автосброса
-                deviceParamsSync.fetchAndApply()
-            }
         }
     }
 
