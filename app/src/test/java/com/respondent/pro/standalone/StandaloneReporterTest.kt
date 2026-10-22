@@ -19,6 +19,7 @@ class StandaloneReporterTest {
         var installId = "11111111-1111-4111-8111-111111111111"
         var token: String? = null
         var lastOrg: String? = null
+        var lastTablet: String? = null
         val events = mutableListOf<StandaloneEvent>()
         override suspend fun installId() = installId
         override suspend fun token() = token
@@ -26,6 +27,8 @@ class StandaloneReporterTest {
         override suspend fun clearToken() { token = null }
         override suspend fun lastBoundOrganizationId() = lastOrg
         override suspend fun saveLastBoundOrganizationId(id: String?) { lastOrg = id }
+        override suspend fun lastBoundTabletId() = lastTablet
+        override suspend fun saveLastBoundTabletId(id: String?) { lastTablet = id }
         override suspend fun pending() = events.toList()
         override suspend fun addPending(event: StandaloneEvent) { events += event }
         override suspend fun removePending(keys: Set<String>) { events.removeAll { it.clientKey in keys } }
@@ -129,6 +132,19 @@ class StandaloneReporterTest {
 
         assertEquals("org-9", api.lastBody?.lastBoundOrganizationId)
         assertEquals(1, api.registrations)
+    }
+
+    @Test
+    fun `привязка сохраняет tabletId, отвязка отправляет его в чек-ине`() = runBlocking {
+        store.token = "token"
+        val r = reporter()
+        r.handleBinding(StoredBinding("api", "t1", "org-9", "ООО", null))
+        r.handleBinding(null)
+        r.checkInNow()
+
+        assertEquals("t1", store.lastTablet)
+        assertEquals("t1", api.lastBody?.lastBoundTabletId)
+        assertEquals("org-9", api.lastBody?.lastBoundOrganizationId)
     }
 
     @Test

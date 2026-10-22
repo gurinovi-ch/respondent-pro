@@ -54,6 +54,7 @@ class StandaloneReporter @Inject constructor(
     suspend fun handleBinding(binding: StoredBinding?) {
         if (binding != null) {
             store.saveLastBoundOrganizationId(binding.organizationId)
+            store.saveLastBoundTabletId(binding.tabletId)
             heartbeat?.cancel()
             heartbeat = null
             unregister()
@@ -90,6 +91,7 @@ class StandaloneReporter @Inject constructor(
             companyName = companyName.companyName(),
             appVersion = info.appVersion,
             lastBoundOrganizationId = store.lastBoundOrganizationId(),
+            lastBoundTabletId = store.lastBoundTabletId(),
             manufacturer = info.manufacturer,
             model = info.model,
             osVersion = info.osVersion,
@@ -140,6 +142,7 @@ class StandaloneReporter @Inject constructor(
                     installId = store.installId(),
                     companyName = companyName.companyName(),
                     lastBoundOrganizationId = store.lastBoundOrganizationId(),
+                    lastBoundTabletId = store.lastBoundTabletId(),
                     manufacturer = info.manufacturer,
                     model = info.model,
                     osVersion = info.osVersion,

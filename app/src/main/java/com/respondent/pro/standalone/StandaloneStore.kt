@@ -27,6 +27,8 @@ interface StandaloneStore {
     suspend fun clearToken()
     suspend fun lastBoundOrganizationId(): String?
     suspend fun saveLastBoundOrganizationId(id: String?)
+    suspend fun lastBoundTabletId(): String?
+    suspend fun saveLastBoundTabletId(id: String?)
     suspend fun pending(): List<StandaloneEvent>
     suspend fun addPending(event: StandaloneEvent)
     suspend fun removePending(keys: Set<String>)
@@ -41,6 +43,7 @@ class DataStoreStandaloneStore @Inject constructor(
         val INSTALL_ID = stringPreferencesKey("install_id")
         val TOKEN = stringPreferencesKey("token")
         val LAST_ORG = stringPreferencesKey("last_bound_organization_id")
+        val LAST_TABLET = stringPreferencesKey("last_bound_tablet_id")
         val PENDING = stringPreferencesKey("pending_events")
     }
 
@@ -69,6 +72,15 @@ class DataStoreStandaloneStore @Inject constructor(
     override suspend fun saveLastBoundOrganizationId(id: String?) {
         context.standaloneDataStore.edit { prefs ->
             if (id == null) prefs.remove(Keys.LAST_ORG) else prefs[Keys.LAST_ORG] = id
+        }
+    }
+
+    override suspend fun lastBoundTabletId(): String? =
+        context.standaloneDataStore.data.first()[Keys.LAST_TABLET]
+
+    override suspend fun saveLastBoundTabletId(id: String?) {
+        context.standaloneDataStore.edit { prefs ->
+            if (id == null) prefs.remove(Keys.LAST_TABLET) else prefs[Keys.LAST_TABLET] = id
         }
     }
 
