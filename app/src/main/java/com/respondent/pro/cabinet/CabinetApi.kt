@@ -77,6 +77,8 @@ data class DeviceParams(
     val logoUrl: String? = null,
     /** Ступень размера 1…5 (x1 вдвое меньше x5); нет поля → null → полный размер. */
     val logoSize: Int? = null,
+    /** PIN для входа в настройки; null — поле не пришло (старый сервер). */
+    val pinCode: String? = null,
 )
 
 /** Тело POST /tablets/telemetry: null-поля Gson не отправляет. */

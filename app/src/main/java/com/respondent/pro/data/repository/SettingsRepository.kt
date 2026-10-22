@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import com.respondent.pro.cabinet.DeviceParams
 import com.respondent.pro.cabinet.normalizeLogoSize
+import com.respondent.pro.cabinet.normalizePinCode
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -140,8 +141,9 @@ class SettingsRepository @Inject constructor(
     }
 
     /**
-     * Записывает только экранные поля, пришедшие с сервера (6 текстовых + логотип).
-     * pin/telegram/sendMethod/email/language/send_incomplete не трогаются (спека §6).
+     * Записывает только экранные поля, пришедшие с сервера (6 текстовых + логотип + PIN).
+     * Telegram/sendMethod/email/language/send_incomplete не трогаются (спека §6).
+     * PIN пишется, только если пришёл валидным (ровно 4 цифры); иначе локальный остаётся.
      * Логотип: null от сервера = «показывать нечего» → ключ удаляем, старый логотип с экрана уходит.
      */
     suspend fun applyDeviceParams(p: DeviceParams, surveyMode: String? = null, surveyPath: String? = null) {
@@ -152,6 +154,7 @@ class SettingsRepository @Inject constructor(
             prefs[Keys.COMMENT_HINT] = p.commentHint
             prefs[Keys.THANK_YOU_TEXT] = p.thankYouText
             prefs[Keys.RESET_TIMEOUT] = p.resetTimeout
+            normalizePinCode(p.pinCode)?.let { prefs[Keys.PIN_CODE] = it }
             if (p.logoUrl.isNullOrBlank()) {
                 prefs.remove(Keys.LOGO_URL)
             } else {
