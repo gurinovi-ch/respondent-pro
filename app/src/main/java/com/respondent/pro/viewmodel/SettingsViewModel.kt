@@ -14,6 +14,7 @@ import com.respondent.pro.cabinet.BindingStorage
 import com.respondent.pro.cabinet.CabinetApi
 import com.respondent.pro.cabinet.CabinetBinder
 import com.respondent.pro.cabinet.CabinetState
+import com.respondent.pro.cabinet.DeviceParamsSync
 import com.respondent.pro.cabinet.FailKind
 import com.respondent.pro.cabinet.PairOutcome
 import com.respondent.pro.cabinet.StoredBinding
@@ -90,6 +91,9 @@ class SettingsViewModel @Inject constructor(
     val isRunningQrDiagnostics: StateFlow<Boolean> = _isRunningQrDiagnostics
 
     private val cabinetBinder = CabinetBinder(bindingStorage, cabinetApi)
+    private val deviceParamsSync = DeviceParamsSync(cabinetApi, bindingStorage) { p, mode, path ->
+        settingsRepository.applyDeviceParams(p, mode, path)
+    }
 
     /** Состояние привязки к кабинету (инициализируется из сохранённого ключа). */
     private val _cabinetState = MutableStateFlow<CabinetState>(
@@ -132,6 +136,10 @@ class SettingsViewModel @Inject constructor(
                 PairOutcome.STORAGE_ERROR -> CabinetState.Failed(FailKind.STORAGE_ERROR)
             }
             Log.i("SettingsViewModel", "cabinet pair: $outcome")
+            if (outcome == PairOutcome.PAIRED) {
+                // PIN из кабинета должен действовать сразу, не ждём автосброса
+                deviceParamsSync.fetchAndApply()
+            }
         }
     }
 

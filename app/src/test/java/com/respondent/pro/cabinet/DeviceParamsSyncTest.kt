@@ -63,6 +63,22 @@ class DeviceParamsSyncTest {
     }
 
     @Test
+    fun `pinCode проходит через sync в применённые параметры`() = runBlocking {
+        val api = FakeApi {
+            DeviceParamsResponse(
+                mode = "DEFAULT",
+                settings = DeviceParams(
+                    orgName = "О", greeting = "П", callToAction = "О", commentHint = "К",
+                    thankYouText = "С", resetTimeout = 60, pinCode = "4321",
+                ),
+            )
+        }
+        var applied: DeviceParams? = null
+        DeviceParamsSync(api, FakeStorage(bound)) { p, _, _ -> applied = p }.fetchAndApply()
+        assertEquals("4321", applied?.pinCode)
+    }
+
+    @Test
     fun `нет привязки - запрос не выполняется`() = runBlocking {
         val storage = FakeStorage(null)
         val api = FakeApi { response }
