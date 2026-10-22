@@ -41,6 +41,7 @@ import com.respondent.pro.kiosk.QrCheck
 import com.respondent.pro.kiosk.QrDiagnosticsResult
 import com.respondent.pro.cabinet.CabinetState
 import com.respondent.pro.cabinet.FailKind
+import com.respondent.pro.cabinet.normalizePinCode
 import com.respondent.pro.kiosk.SettingsExcursionOverlay
 import com.respondent.pro.ui.i18n.AppStrings
 import com.respondent.pro.ui.components.SettingsPinDialog
@@ -59,6 +60,7 @@ fun SettingsScreen(
     val context = LocalContext.current
     val kioskManager = viewModel.kiosk
     val strings = LocalAppStrings.current
+    val pinValid = normalizePinCode(localSettings.pinCode) != null
     var langExpanded by remember { mutableStateOf(false) }
     var sendMethodExpanded by remember { mutableStateOf(false) }
     var emailPresetExpanded by remember { mutableStateOf(false) }
@@ -181,6 +183,7 @@ fun SettingsScreen(
                     viewModel.saveSettings(localSettings)
                     onStart()
                 },
+                enabled = pinValid,
                 modifier = Modifier.weight(0.65f)
             ) {
                 Text(strings.btnStart)
@@ -253,6 +256,8 @@ fun SettingsScreen(
                     value = localSettings.pinCode,
                     onValueChange = { if (it.length <= 4 && it.all { c -> c.isDigit() }) localSettings = localSettings.copy(pinCode = it) },
                     label = { Text(strings.pinLabel) },
+                    isError = !pinValid,
+                    supportingText = { if (!pinValid) Text(strings.pinInvalid) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)

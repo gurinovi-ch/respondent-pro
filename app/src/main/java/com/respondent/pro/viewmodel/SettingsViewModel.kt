@@ -17,6 +17,7 @@ import com.respondent.pro.cabinet.CabinetState
 import com.respondent.pro.cabinet.FailKind
 import com.respondent.pro.cabinet.PairOutcome
 import com.respondent.pro.cabinet.StoredBinding
+import com.respondent.pro.cabinet.normalizePinCode
 import com.respondent.pro.kiosk.KioskManager
 import com.respondent.pro.kiosk.KioskStatus
 import com.respondent.pro.kiosk.QrDiagnostics
@@ -34,6 +35,10 @@ import javax.inject.Inject
 
 /** PIN подтверждает действие, только если он непустой и совпадает с сохранённым. */
 fun pinMatches(input: String, saved: String): Boolean = input.isNotEmpty() && input == saved
+
+/** Новый PIN, если он валиден; иначе прежний; иначе заводской 0000. */
+fun safePin(input: String, previous: String): String =
+    normalizePinCode(input) ?: normalizePinCode(previous) ?: "0000"
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -226,8 +231,9 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun saveSettings(settings: AppSettings) {
+        val pin = safePin(settings.pinCode, _settings.value.pinCode)
         viewModelScope.launch {
-            settingsRepository.save(settings)
+            settingsRepository.save(settings.copy(pinCode = pin))
         }
     }
 
