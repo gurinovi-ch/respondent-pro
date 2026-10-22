@@ -6,9 +6,6 @@ import com.respondent.pro.data.model.Feedback
 import com.respondent.pro.data.repository.SettingsRepository
 import com.respondent.pro.standalone.StandaloneReporter
 import kotlinx.coroutines.flow.first
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -39,7 +36,7 @@ class TelegramSender @Inject constructor(
             return false
         }
 
-        val message = formatMessage(feedback, settings.orgName)
+        val message = formatMessage(feedback)
         Log.d(TAG, "Message preview: ${message.take(100)}...")
 
         return try {
@@ -81,28 +78,11 @@ class TelegramSender @Inject constructor(
         return sentCount
     }
 
-    private fun formatMessage(feedback: Feedback, orgName: String): String {
-        val stars = "⭐".repeat(feedback.rating)
-        val date = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(feedback.createdAt))
-        val timeTaken = if (feedback.startedAt > 0) {
-            val seconds = (feedback.createdAt - feedback.startedAt) / 1000
-            "${seconds}сек"
-        } else "—"
-
-        return buildString {
-            appendLine("<b>Новый отзыв</b>")
-            appendLine()
-            appendLine("Оценка: $stars (${feedback.rating}/5)")
-            if (feedback.text.isNotBlank()) {
-                appendLine("Комментарий: ${feedback.text}")
-            }
-            appendLine()
-            if (orgName.isNotBlank()) {
-                appendLine("Организация: $orgName")
-            }
-            appendLine("Дата: $date")
-            appendLine("Время заполнения: $timeTaken")
-            appendLine("Полный: ${if (feedback.isComplete) "да" else "нет (таймаут)"}")
-        }
-    }
+    private fun formatMessage(feedback: Feedback): String =
+        formatFeedbackMessage(
+            rating = feedback.rating,
+            text = feedback.text,
+            createdAt = feedback.createdAt,
+            html = true,
+        )
 }

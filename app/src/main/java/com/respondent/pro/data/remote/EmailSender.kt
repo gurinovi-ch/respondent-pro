@@ -8,9 +8,6 @@ import com.respondent.pro.standalone.StandaloneReporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import java.util.Properties
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -77,7 +74,7 @@ class EmailSender @Inject constructor(
                     setFrom(InternetAddress(emailFrom))
                     addRecipient(Message.RecipientType.TO, InternetAddress(emailTo))
                     subject = "Новый отзыв${if (settings.orgName.isNotBlank()) " — ${settings.orgName}" else ""}"
-                    setText(formatMessage(feedback, settings.orgName), "UTF-8")
+                    setText(formatMessage(feedback), "UTF-8")
                 }
 
                 Log.d(TAG, "Sending email via $host:$port...")
@@ -115,28 +112,11 @@ class EmailSender @Inject constructor(
         }
     }
 
-    private fun formatMessage(feedback: Feedback, orgName: String): String {
-        val stars = "⭐".repeat(feedback.rating)
-        val date = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(feedback.createdAt))
-        val timeTaken = if (feedback.startedAt > 0) {
-            val seconds = (feedback.createdAt - feedback.startedAt) / 1000
-            "${seconds}сек"
-        } else "—"
-
-        return buildString {
-            appendLine("Новый отзыв")
-            appendLine()
-            appendLine("Оценка: $stars (${feedback.rating}/5)")
-            if (feedback.text.isNotBlank()) {
-                appendLine("Комментарий: ${feedback.text}")
-            }
-            appendLine()
-            if (orgName.isNotBlank()) {
-                appendLine("Организация: $orgName")
-            }
-            appendLine("Дата: $date")
-            appendLine("Время заполнения: $timeTaken")
-            appendLine("Полный: ${if (feedback.isComplete) "да" else "нет (таймаут)"}")
-        }
-    }
+    private fun formatMessage(feedback: Feedback): String =
+        formatFeedbackMessage(
+            rating = feedback.rating,
+            text = feedback.text,
+            createdAt = feedback.createdAt,
+            html = false,
+        )
 }
