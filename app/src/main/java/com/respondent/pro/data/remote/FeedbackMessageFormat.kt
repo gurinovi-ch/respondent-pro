@@ -14,7 +14,7 @@ import java.util.Locale
  * 22.10.2026 12:22
  * ```
  *
- * Пустой текст пропускается. Для Telegram текст экранируется под parse_mode=HTML.
+ * Пустой текст заменяется на «Без комментария». Для Telegram текст экранируется под parse_mode=HTML.
  */
 fun formatFeedbackMessage(
     rating: Int,
@@ -23,11 +23,12 @@ fun formatFeedbackMessage(
     html: Boolean = false,
 ): String {
     val safeRating = rating.coerceIn(1, 5)
-    val body = text.trim().let { if (html) escapeHtml(it) else it }
+    val body = text.trim().ifEmpty { "Без комментария" }
+        .let { if (html) escapeHtml(it) else it }
     val date = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(createdAt))
     return buildString {
         append("⭐️".repeat(safeRating)).append(" (").append(safeRating).append("/5)")
-        if (body.isNotEmpty()) append('\n').append(body)
+        append('\n').append(body)
         append('\n').append('\n').append(date)
     }
 }

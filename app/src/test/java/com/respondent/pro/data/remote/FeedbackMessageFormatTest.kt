@@ -27,14 +27,14 @@ class FeedbackMessageFormatTest {
     }
 
     @Test
-    fun `без текста остаётся только оценка и дата`() {
+    fun `без текста пишется Без комментария`() {
         val message = formatFeedbackMessage(
             rating = 3,
             text = "   ",
             createdAt = millis(2026, Calendar.OCTOBER, 22, 12, 22),
         )
 
-        assertEquals("⭐️⭐️⭐️ (3/5)\n\n22.10.2026 12:22", message)
+        assertEquals("⭐️⭐️⭐️ (3/5)\nБез комментария\n\n22.10.2026 12:22", message)
     }
 
     @Test
