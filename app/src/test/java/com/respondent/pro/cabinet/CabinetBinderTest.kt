@@ -19,8 +19,11 @@ class CabinetBinderTest {
     private class FakeStorage : BindingStorage {
         var data: StoredBinding? = null
         var clearCalls = 0
+        var ignoreWrite = false
         override fun read(): StoredBinding? = data
-        override fun write(binding: StoredBinding) { data = binding }
+        override fun write(binding: StoredBinding) {
+            if (!ignoreWrite) data = binding
+        }
         override fun clear() { data = null; clearCalls++ }
     }
 
@@ -109,6 +112,13 @@ class CabinetBinderTest {
         val storage = FakeStorage()
         val api = FakeApi { throw IllegalStateException("malformed json response") }
         assertEquals(PairOutcome.NETWORK_ERROR, CabinetBinder(storage, api).pair("abcd-efgh"))
+        assertNull(storage.data)
+    }
+
+    @Test fun `ключ не сохранился — STORAGE_ERROR, а не PAIRED`() = runBlocking {
+        val storage = FakeStorage().apply { ignoreWrite = true }
+        val api = FakeApi { ok }
+        assertEquals(PairOutcome.STORAGE_ERROR, CabinetBinder(storage, api).pair("abcd-efgh"))
         assertNull(storage.data)
     }
 

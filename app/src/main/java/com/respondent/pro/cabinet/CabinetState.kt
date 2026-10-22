@@ -1,6 +1,6 @@
 package com.respondent.pro.cabinet
 
-enum class FailKind { INVALID_CODE, NETWORK, REVOKED }
+enum class FailKind { INVALID_CODE, NETWORK, REVOKED, STORAGE_ERROR }
 
 /** Состояние экрана «Привязка к кабинету» (UI + ViewModel). */
 sealed class CabinetState {

@@ -23,9 +23,9 @@ class ApiKeyInterceptorTest {
     @Before fun setUp() { server = MockWebServer(); server.start() }
     @After fun tearDown() { server.shutdown() }
 
-    private fun callWith(storage: FakeStorage): String? {
+    private fun callWith(storage: FakeStorage, code: Int = 204): String? {
         // Без заготовленного ответа QueueDispatcher блокирует запрос до таймаута OkHttp.
-        server.enqueue(MockResponse().setResponseCode(204))
+        server.enqueue(MockResponse().setResponseCode(code))
         val client = OkHttpClient.Builder()
             .addInterceptor(ApiKeyInterceptor(storage))
             .build()
@@ -40,5 +40,23 @@ class ApiKeyInterceptorTest {
 
     @Test fun `без привязки — заголовок не отправляется`() {
         assertNull(callWith(FakeStorage(null)))
+    }
+
+    @Test fun `401 — ключ погашен, привязка очищается`() {
+        val storage = FakeStorage(StoredBinding("rpro_key", "t1", "o1", "ООО", null))
+        callWith(storage, 401)
+        assertNull(storage.data)
+    }
+
+    @Test fun `403 — привязка очищается`() {
+        val storage = FakeStorage(StoredBinding("rpro_key", "t1", "o1", "ООО", null))
+        callWith(storage, 403)
+        assertNull(storage.data)
+    }
+
+    @Test fun `500 — привязка сохраняется`() {
+        val storage = FakeStorage(StoredBinding("rpro_key", "t1", "o1", "ООО", null))
+        callWith(storage, 500)
+        assertEquals("rpro_key", storage.data?.apiKey)
     }
 }

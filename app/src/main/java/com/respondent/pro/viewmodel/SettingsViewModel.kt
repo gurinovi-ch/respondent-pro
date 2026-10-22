@@ -92,6 +92,22 @@ class SettingsViewModel @Inject constructor(
     )
     val cabinetState: StateFlow<CabinetState> = _cabinetState
 
+    init {
+        // Ключ может исчезнуть без действий пользователя: сервер погасил его
+        // («Сбросить доступ») и запрос получил 401 — интерсептор очистил привязку.
+        viewModelScope.launch {
+            bindingStorage.observe().collect { binding ->
+                if (binding == null) {
+                    if (_cabinetState.value is CabinetState.Bound) {
+                        _cabinetState.value = CabinetState.Failed(FailKind.REVOKED)
+                    }
+                } else {
+                    _cabinetState.value = binding.toBound()
+                }
+            }
+        }
+    }
+
     private fun StoredBinding.toBound() =
         CabinetState.Bound(organizationName, pointName)
 
@@ -108,6 +124,7 @@ class SettingsViewModel @Inject constructor(
                 PairOutcome.INVALID_CODE -> CabinetState.Failed(FailKind.INVALID_CODE)
                 PairOutcome.NETWORK_ERROR -> CabinetState.Failed(FailKind.NETWORK)
                 PairOutcome.REVOKED -> CabinetState.Failed(FailKind.REVOKED)
+                PairOutcome.STORAGE_ERROR -> CabinetState.Failed(FailKind.STORAGE_ERROR)
             }
             Log.i("SettingsViewModel", "cabinet pair: $outcome")
         }

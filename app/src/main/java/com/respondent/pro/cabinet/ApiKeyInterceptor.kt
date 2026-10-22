@@ -1,16 +1,29 @@
 package com.respondent.pro.cabinet
 
+import android.util.Log
 import okhttp3.Interceptor
 import okhttp3.Response
 
 /** Ставит X-API-Key на все запросы API кабинета, если планшет привязан. */
 class ApiKeyInterceptor(private val storage: BindingStorage) : Interceptor {
+    companion object {
+        private const val TAG = "ApiKeyInterceptor"
+    }
+
     override fun intercept(chain: Interceptor.Chain): Response {
         val binding = storage.read()
         val request = chain.request().newBuilder()
         if (binding != null) {
             request.header("X-API-Key", binding.apiKey)
         }
-        return chain.proceed(request.build())
+        val response = chain.proceed(request.build())
+        // Ключ погашен в кабинете («Сбросить доступ») или заменён: привязки
+        // больше нет. Чистим локально, чтобы UI не показывал «Привязан», а
+        // планшет вернулся в Free-режим — как и при ошибке отправки отзыва.
+        if (binding != null && (response.code == 401 || response.code == 403)) {
+            Log.w(TAG, "API key rejected (${response.code}) — unbinding")
+            storage.clear()
+        }
+        return response
     }
 }

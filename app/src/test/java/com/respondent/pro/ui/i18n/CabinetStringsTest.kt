@@ -11,7 +11,7 @@ class CabinetStringsTest {
         s.kabinetStatusBoundPoint, s.kabinetCodeLabel, s.kabinetBindButton,
         s.kabinetBinding, s.kabinetUnbindButton, s.kabinetHint,
         s.kabinetErrorInvalid, s.kabinetErrorNetwork, s.kabinetRevoked,
-        s.boundSettingsHint
+        s.kabinetStorageError, s.boundSettingsHint
     )
 
     @Test

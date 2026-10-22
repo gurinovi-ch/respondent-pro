@@ -1183,6 +1183,7 @@ private fun CabinetCard(
                     FailKind.INVALID_CODE -> strings.kabinetErrorInvalid
                     FailKind.NETWORK -> strings.kabinetErrorNetwork
                     FailKind.REVOKED -> strings.kabinetRevoked
+                    FailKind.STORAGE_ERROR -> strings.kabinetStorageError
                 }
             }
             Text(

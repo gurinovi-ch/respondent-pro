@@ -90,6 +90,7 @@ class AppStrings(
     val kabinetErrorInvalid: String,
     val kabinetErrorNetwork: String,
     val kabinetRevoked: String,
+    val kabinetStorageError: String,
     /** Показывается вместо полей интерфейса, когда планшет привязан к кабинету. */
     val boundSettingsHint: String,
     // Стартовый экран
@@ -195,6 +196,7 @@ val ruStrings = AppStrings(
     kabinetErrorInvalid = "Неверный или просроченный код",
     kabinetErrorNetwork = "Нет связи с сервером",
     kabinetRevoked = "Привязка отменена",
+    kabinetStorageError = "Не удалось сохранить привязку на устройстве — попробуйте ещё раз",
     boundSettingsHint = "Настройки интерфейса осуществляются в Личном кабинете пользователя.",
     btnDone = "Готово",
     defaultCallToAction = "Пожалуйста оцените наши услуги",
@@ -296,6 +298,7 @@ val enStrings = AppStrings(
     kabinetErrorInvalid = "Invalid or expired code",
     kabinetErrorNetwork = "Server unreachable",
     kabinetRevoked = "Binding revoked",
+    kabinetStorageError = "Could not save the binding on this device — try again",
     boundSettingsHint = "Interface settings are managed in your user cabinet.",
     btnDone = "Done",
     defaultCallToAction = "Please rate our services",

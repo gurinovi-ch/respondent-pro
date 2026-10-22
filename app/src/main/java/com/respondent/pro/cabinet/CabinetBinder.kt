@@ -4,7 +4,7 @@ import retrofit2.HttpException
 import java.io.IOException
 import kotlin.coroutines.cancellation.CancellationException
 
-enum class PairOutcome { PAIRED, BUSY, INVALID_CODE, NETWORK_ERROR, REVOKED }
+enum class PairOutcome { PAIRED, BUSY, INVALID_CODE, NETWORK_ERROR, REVOKED, STORAGE_ERROR }
 
 /**
  * Нормализация ввода: убирает пробелы/дефисы, верхний регистр.
@@ -44,6 +44,9 @@ class CabinetBinder(
             storage.write(
                 StoredBinding(r.apiKey, r.tabletId, r.organizationId, r.organizationName, r.pointName)
             )
+            // write() best-effort (сбой Keystore логируется, но не бросает).
+            // Без проверки UI показывал бы «Привязан» с ключом, которого нет.
+            if (storage.read()?.apiKey != r.apiKey) return PairOutcome.STORAGE_ERROR
             PairOutcome.PAIRED
         } catch (e: HttpException) {
             when (e.code()) {
