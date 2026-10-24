@@ -2,6 +2,7 @@ package com.respondent.pro.ui.navigation
 
 import androidx.compose.runtime.*
 import android.util.Log
+import kotlinx.coroutines.delay
 import androidx.hilt.navigation.compose.hiltViewModel
 import android.webkit.WebView
 import androidx.compose.foundation.layout.Box
@@ -97,7 +98,31 @@ fun NavGraph() {
 
     NavHost(navController = navController, startDestination = Screen.Feedback.route) {
         composable(Screen.Feedback.route) {
-            if (webEnabled) {
+            val billingPaused by feedbackViewModel.billingPaused.collectAsState()
+            var pauseShowPin by remember { mutableStateOf(false) }
+
+            if (billingPaused) {
+                LaunchedEffect(Unit) {
+                    while (true) {
+                        delay(60_000)
+                        feedbackViewModel.refreshDeviceParams()
+                    }
+                }
+                Box(modifier = Modifier.fillMaxSize()) {
+                    PausedScreen(onSettings = { pauseShowPin = true })
+                    SettingsPinDialog(
+                        open = pauseShowPin,
+                        title = strings.pinDialogTitle,
+                        cancelLabel = strings.btnCancel,
+                        verifyPin = feedbackViewModel::verifyPin,
+                        onSuccess = {
+                            pauseShowPin = false
+                            navController.navigate(Screen.Settings.route)
+                        },
+                        onDismiss = { pauseShowPin = false },
+                    )
+                }
+            } else if (webEnabled) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     WebSurveyScreen(
                         surveyPath = settings.surveyPath,

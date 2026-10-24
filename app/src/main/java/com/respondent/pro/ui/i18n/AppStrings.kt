@@ -109,7 +109,10 @@ class AppStrings(
     val errorSavePattern: String,
     val errorNavPattern: String,
     // Экран благодарности
-    val defaultThankYou: String
+    val defaultThankYou: String,
+    // Экран паузы (биллинг)
+    val billingPausedTitle: String,
+    val billingPausedText: String
 )
 
 val ruStrings = AppStrings(
@@ -212,7 +215,9 @@ val ruStrings = AppStrings(
     btnNoComment = "Без комментария",
     errorSavePattern = "Ошибка сохранения: %s",
     errorNavPattern = "Ошибка навигации: %s",
-    defaultThankYou = "Спасибо за ваш отзыв!"
+    defaultThankYou = "Спасибо за ваш отзыв!",
+    billingPausedTitle = "Сервис на паузе",
+    billingPausedText = "Обратитесь к администратору, чтобы возобновить работу."
 )
 
 val enStrings = AppStrings(
@@ -315,7 +320,9 @@ val enStrings = AppStrings(
     btnNoComment = "No comment",
     errorSavePattern = "Save error: %s",
     errorNavPattern = "Navigation error: %s",
-    defaultThankYou = "Thank you for your feedback!"
+    defaultThankYou = "Thank you for your feedback!",
+    billingPausedTitle = "Service paused",
+    billingPausedText = "Contact your administrator to resume service."
 )
 
 fun appStringsFor(language: String): AppStrings = if (language == "en") enStrings else ruStrings
