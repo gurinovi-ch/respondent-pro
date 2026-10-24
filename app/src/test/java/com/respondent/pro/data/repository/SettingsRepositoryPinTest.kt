@@ -33,4 +33,13 @@ class SettingsRepositoryPinTest {
         repo.applyDeviceParams(params(null))
         assertEquals("4321", repo.settings.first().pinCode)
     }
+
+    @Test
+    fun `billingPaused сохраняется и снимается`() = runBlocking {
+        val repo = SettingsRepository(RuntimeEnvironment.getApplication())
+        repo.applyDeviceParams(params(null), billingPaused = true)
+        assertEquals(true, repo.settings.first().billingPaused)
+        repo.setBillingPaused(false)
+        assertEquals(false, repo.settings.first().billingPaused)
+    }
 }

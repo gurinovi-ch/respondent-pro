@@ -141,12 +141,15 @@ class CabinetBinderTest {
         assertNull(storage.data)
     }
 
-    @Test fun `isRevoked clears only on 401 403`() {
+    @Test fun `isRevoked clears only on 401`() {
         val storage = FakeStorage()
         storage.data = StoredBinding("k", "t", "o", "Org", null)
         val binder = CabinetBinder(storage, FakeApi { ok })
         assertTrue(binder.isRevoked(401))
         assertNull(storage.data)
+        storage.data = StoredBinding("k", "t", "o", "Org", null)
+        assertEquals(false, binder.isRevoked(403))
+        assertNotNull(storage.data)
         storage.data = StoredBinding("k", "t", "o", "Org", null)
         assertEquals(false, binder.isRevoked(500))
         assertNotNull(storage.data)

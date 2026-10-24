@@ -92,8 +92,8 @@ class SettingsViewModel @Inject constructor(
     val isRunningQrDiagnostics: StateFlow<Boolean> = _isRunningQrDiagnostics
 
     private val cabinetBinder = CabinetBinder(bindingStorage, cabinetApi)
-    private val deviceParamsSync = DeviceParamsSync(cabinetApi, bindingStorage) { p, mode, path ->
-        settingsRepository.applyDeviceParams(p, mode, path)
+    private val deviceParamsSync = DeviceParamsSync(cabinetApi, bindingStorage) { p, mode, path, paused ->
+        settingsRepository.applyDeviceParams(p, mode, path, paused)
     }
     private val pairingFlow = PairingFlow(cabinetBinder) { deviceParamsSync.fetchAndApply() }
 

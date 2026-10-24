@@ -40,7 +40,7 @@ class DeviceParamsLogoTest {
             ),
         )
         var applied: DeviceParams? = null
-        val sync = DeviceParamsSync(FakeApi(response), FakeStorage(bound)) { p, _, _ -> applied = p }
+        val sync = DeviceParamsSync(FakeApi(response), FakeStorage(bound)) { p, _, _, _ -> applied = p }
 
         assertTrue(sync.fetchAndApply())
         assertEquals("/api/logo/o1?v=7", applied?.logoUrl)
@@ -58,7 +58,7 @@ class DeviceParamsLogoTest {
             ),
         )
         var applied: DeviceParams? = null
-        val sync = DeviceParamsSync(FakeApi(response), FakeStorage(bound)) { p, _, _ -> applied = p }
+        val sync = DeviceParamsSync(FakeApi(response), FakeStorage(bound)) { p, _, _, _ -> applied = p }
 
         assertTrue(sync.fetchAndApply())
         assertNull(applied?.logoUrl)

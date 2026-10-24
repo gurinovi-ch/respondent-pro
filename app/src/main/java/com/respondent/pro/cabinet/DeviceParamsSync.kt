@@ -13,7 +13,7 @@ import java.io.IOException
 class DeviceParamsSync(
     private val api: CabinetApi,
     private val storage: BindingStorage,
-    private val applyParams: suspend (DeviceParams, String?, String?) -> Unit,
+    private val applyParams: suspend (DeviceParams, String?, String?, Boolean) -> Unit,
 ) {
     companion object {
         private const val TAG = "DeviceParamsSync"
@@ -26,11 +26,11 @@ class DeviceParamsSync(
         }
         return try {
             val response = api.deviceParams()
-            applyParams(response.settings, response.surveyMode, response.surveyPath)
+            applyParams(response.settings, response.surveyMode, response.surveyPath, response.billingPaused)
             Log.i(
                 TAG,
                 "Device params applied, mode=${response.mode}, survey=${response.surveyMode ?: "APK"} " +
-                    "path=${response.surveyPath ?: "-"}, " +
+                    "path=${response.surveyPath ?: "-"}, paused=${response.billingPaused}, " +
                     "logo=${if (response.settings.logoUrl.isNullOrBlank()) "no" else "yes"} " +
                     "size=${response.settings.logoSize ?: 5}",
             )

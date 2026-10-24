@@ -52,7 +52,7 @@ class DeviceParamsSyncTest {
         val storage = FakeStorage(bound)
         val api = FakeApi { response }
         var applied: DeviceParams? = null
-        val sync = DeviceParamsSync(api, storage) { p, _, _ -> applied = p }
+        val sync = DeviceParamsSync(api, storage) { p, _, _, _ -> applied = p }
 
         val ok = sync.fetchAndApply()
 
@@ -74,7 +74,7 @@ class DeviceParamsSyncTest {
             )
         }
         var applied: DeviceParams? = null
-        DeviceParamsSync(api, FakeStorage(bound)) { p, _, _ -> applied = p }.fetchAndApply()
+        DeviceParamsSync(api, FakeStorage(bound)) { p, _, _, _ -> applied = p }.fetchAndApply()
         assertEquals("4321", applied?.pinCode)
     }
 
@@ -83,7 +83,7 @@ class DeviceParamsSyncTest {
         val storage = FakeStorage(null)
         val api = FakeApi { response }
         var applied = false
-        val sync = DeviceParamsSync(api, storage) { _, _, _ -> applied = true }
+        val sync = DeviceParamsSync(api, storage) { _, _, _, _ -> applied = true }
 
         val ok = sync.fetchAndApply()
 
@@ -97,7 +97,7 @@ class DeviceParamsSyncTest {
         val storage = FakeStorage(bound)
         val api = FakeApi { throw httpError(401) }
         var applied = false
-        val sync = DeviceParamsSync(api, storage) { _, _, _ -> applied = true }
+        val sync = DeviceParamsSync(api, storage) { _, _, _, _ -> applied = true }
 
         val ok = sync.fetchAndApply()
 
@@ -108,11 +108,28 @@ class DeviceParamsSyncTest {
     }
 
     @Test
+    fun `billingPaused проходит через sync`() = runBlocking {
+        val api = FakeApi {
+            DeviceParamsResponse(
+                mode = "DEFAULT",
+                billingPaused = true,
+                settings = DeviceParams(
+                    orgName = "О", greeting = "П", callToAction = "О", commentHint = "К",
+                    thankYouText = "С", resetTimeout = 60,
+                ),
+            )
+        }
+        var paused: Boolean? = null
+        DeviceParamsSync(api, FakeStorage(bound)) { _, _, _, p -> paused = p }.fetchAndApply()
+        assertEquals(true, paused)
+    }
+
+    @Test
     fun `сетевая ошибка - тихий отказ, локальные значения целы`() = runBlocking {
         val storage = FakeStorage(bound)
         val api = FakeApi { throw IOException("timeout") }
         var applied = false
-        val sync = DeviceParamsSync(api, storage) { _, _, _ -> applied = true }
+        val sync = DeviceParamsSync(api, storage) { _, _, _, _ -> applied = true }
 
         val ok = sync.fetchAndApply()
 

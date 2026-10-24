@@ -55,7 +55,9 @@ data class AppSettings(
     /** Режим опроса: "APK" — нативные шаги, "WEB" — веб-опрос в WebView. */
     val surveyMode: String = "APK",
     /** Путь веб-опроса (`/survey/form/<code>`); null — формы нет. */
-    val surveyPath: String? = null
+    val surveyPath: String? = null,
+    /** Биллинг приостановлен: отзывы остаются в очереди. */
+    val billingPaused: Boolean = false
 )
 
 @Singleton
@@ -86,6 +88,7 @@ class SettingsRepository @Inject constructor(
         val LOGO_SIZE = intPreferencesKey("logo_size")
         val SURVEY_MODE = stringPreferencesKey("survey_mode")
         val SURVEY_PATH = stringPreferencesKey("survey_path")
+        val BILLING_PAUSED = booleanPreferencesKey("billing_paused")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -112,7 +115,8 @@ class SettingsRepository @Inject constructor(
             logoUrl = prefs[Keys.LOGO_URL],
             logoSize = prefs[Keys.LOGO_SIZE] ?: 5,
             surveyMode = prefs[Keys.SURVEY_MODE] ?: "APK",
-            surveyPath = prefs[Keys.SURVEY_PATH]
+            surveyPath = prefs[Keys.SURVEY_PATH],
+            billingPaused = prefs[Keys.BILLING_PAUSED] ?: false
         )
     }
 
@@ -146,7 +150,7 @@ class SettingsRepository @Inject constructor(
      * PIN пишется, только если пришёл валидным (ровно 4 цифры); иначе локальный остаётся.
      * Логотип: null от сервера = «показывать нечего» → ключ удаляем, старый логотип с экрана уходит.
      */
-    suspend fun applyDeviceParams(p: DeviceParams, surveyMode: String? = null, surveyPath: String? = null) {
+    suspend fun applyDeviceParams(p: DeviceParams, surveyMode: String? = null, surveyPath: String? = null, billingPaused: Boolean = false) {
         context.dataStore.edit { prefs ->
             prefs[Keys.ORG_NAME] = p.orgName
             prefs[Keys.GREETING] = p.greeting
@@ -168,6 +172,7 @@ class SettingsRepository @Inject constructor(
             } else {
                 prefs[Keys.SURVEY_PATH] = surveyPath
             }
+            prefs[Keys.BILLING_PAUSED] = billingPaused
         }
     }
 
@@ -179,5 +184,10 @@ class SettingsRepository @Inject constructor(
         context.dataStore.edit { prefs ->
             prefs[Keys.LANGUAGE] = language
         }
+    }
+
+    /** Пауза/возобновление биллинга — отдельная запись, не затирает прочие настройки. */
+    suspend fun setBillingPaused(paused: Boolean) {
+        context.dataStore.edit { it[Keys.BILLING_PAUSED] = paused }
     }
 }

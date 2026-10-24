@@ -48,10 +48,10 @@ class ApiKeyInterceptorTest {
         assertNull(storage.data)
     }
 
-    @Test fun `403 — привязка очищается`() {
+    @Test fun `403 — привязка сохраняется`() {
         val storage = FakeStorage(StoredBinding("rpro_key", "t1", "o1", "ООО", null))
         callWith(storage, 403)
-        assertNull(storage.data)
+        assertEquals("rpro_key", storage.data?.apiKey)
     }
 
     @Test fun `500 — привязка сохраняется`() {

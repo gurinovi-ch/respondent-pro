@@ -1,5 +1,6 @@
 package com.respondent.pro.data.remote
 
+import com.respondent.pro.cabinet.BillingPauseSignal
 import com.respondent.pro.cabinet.BindingStorage
 import com.respondent.pro.cabinet.CabinetApi
 import com.respondent.pro.cabinet.DeviceParamsResponse
@@ -17,6 +18,7 @@ import com.respondent.pro.data.model.Feedback
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -86,11 +88,11 @@ class CabinetChannelTest {
         createdAt = startedAt + 5000, startedAt = startedAt, clientKey = clientKey,
     )
 
-    private fun httpError(code: Int) =
-        HttpException(Response.error<Any>(code, "".toResponseBody(null)))
+    private fun httpError(code: Int, body: String = "") =
+        HttpException(Response.error<Any>(code, body.toResponseBody("application/json".toMediaType())))
 
     private fun channel(api: CabinetApi, dao: FeedbackDao, storage: FakeStorage) =
-        CabinetChannel(api, dao, storage)
+        CabinetChannel(api, dao, storage, BillingPauseSignal())
 
     @Test fun `успех — payload полный, запись помечена синхронизированной`() = runBlocking {
         val api = FakeApi(); val dao = FakeDao(); val storage = FakeStorage(bound)
@@ -142,16 +144,29 @@ class CabinetChannelTest {
         assertTrue(api.bodies.isEmpty())
     }
 
-    @Test fun `401 и 403 — ключ отозван (REVOKED), storage чистится, запись не помечена`() = runBlocking {
-        listOf(401, 403).forEach { code ->
-            val api = FakeApi { throw httpError(code) }
-            val dao = FakeDao(); val storage = FakeStorage(bound)
-            val outcome = channel(api, dao, storage).upload(feedback())
-            assertEquals(UploadOutcome.REVOKED, outcome)
-            assertEquals(1, storage.clearCalls)
-            assertNull(storage.data)
-            assertTrue(dao.synced.isEmpty())
-        }
+    @Test fun `401 — REVOKED, storage чистится`() = runBlocking {
+        val api = FakeApi { throw httpError(401) }
+        val storage = FakeStorage(bound)
+        val outcome = channel(api, FakeDao(), storage).upload(feedback())
+        assertEquals(UploadOutcome.REVOKED, outcome)
+        assertEquals(1, storage.clearCalls)
+    }
+
+    @Test fun `403 BILLING_PAUSED — PAUSED, storage сохраняется`() = runBlocking {
+        val api = FakeApi { throw httpError(403, """{"code":"BILLING_PAUSED"}""") }
+        val storage = FakeStorage(bound)
+        val outcome = channel(api, FakeDao(), storage).upload(feedback())
+        assertEquals(UploadOutcome.PAUSED, outcome)
+        assertEquals(0, storage.clearCalls)
+        assertNotNull(storage.data)
+    }
+
+    @Test fun `403 без BILLING_PAUSED — RETRY, storage сохраняется`() = runBlocking {
+        val api = FakeApi { throw httpError(403, """{"message":"forbidden"}""") }
+        val storage = FakeStorage(bound)
+        val outcome = channel(api, FakeDao(), storage).upload(feedback())
+        assertEquals(UploadOutcome.RETRY, outcome)
+        assertEquals(0, storage.clearCalls)
     }
 
     @Test fun `сетевая ошибка — RETRY, запись остаётся в очереди`() = runBlocking {

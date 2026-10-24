@@ -8,6 +8,7 @@ import com.respondent.pro.data.remote.FeedbackSender
 import com.respondent.pro.data.repository.FeedbackRepository
 import com.respondent.pro.data.repository.SettingsRepository
 import com.respondent.pro.data.repository.AppSettings
+import com.respondent.pro.cabinet.BillingPauseSignal
 import com.respondent.pro.cabinet.BindingStorage
 import com.respondent.pro.cabinet.CabinetApi
 import com.respondent.pro.cabinet.DeviceParamsSync
@@ -20,6 +21,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -35,10 +37,12 @@ class FeedbackViewModel @Inject constructor(
     private val bindingStorage: BindingStorage,
     private val telemetryReporter: DeviceTelemetryReporter,
     private val standaloneReporter: StandaloneReporter,
+    private val pauseSignal: BillingPauseSignal,
 ) : ViewModel() {
 
-    private val deviceParamsSync = DeviceParamsSync(cabinetApi, bindingStorage) { p, mode, path ->
-        settingsRepository.applyDeviceParams(p, mode, path)
+    private val deviceParamsSync = DeviceParamsSync(cabinetApi, bindingStorage) { p, mode, path, paused ->
+        settingsRepository.applyDeviceParams(p, mode, path, paused)
+        pauseSignal.set(paused)
     }
 
     /** Повторный fetch параметров устройства — вызывается при таймерном сбросе на главный. */
@@ -52,6 +56,13 @@ class FeedbackViewModel @Inject constructor(
     val isBound: StateFlow<Boolean> = bindingStorage.observe()
         .map { it != null }
         .stateIn(viewModelScope, SharingStarted.Eagerly, bindingStorage.read() != null)
+
+    /** Пауза биллинга: персист + мгновенный сигнал (до ближайшей записи в DataStore). */
+    val billingPaused: StateFlow<Boolean> = combine(
+        settingsRepository.settings.map { it.billingPaused },
+        pauseSignal.paused,
+    ) { persisted, signal -> persisted || signal }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     // --- Веб-опрос в WebView (срез 4) ---
     private val webState = WebSurveyState()

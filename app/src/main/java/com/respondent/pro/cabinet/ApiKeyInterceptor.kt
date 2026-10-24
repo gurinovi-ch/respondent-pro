@@ -20,8 +20,9 @@ class ApiKeyInterceptor(private val storage: BindingStorage) : Interceptor {
         // Ключ погашен в кабинете («Сбросить доступ») или заменён: привязки
         // больше нет. Чистим локально, чтобы UI не показывал «Привязан», а
         // планшет вернулся в Free-режим — как и при ошибке отправки отзыва.
-        if (binding != null && (response.code == 401 || response.code == 403)) {
-            Log.w(TAG, "API key rejected (${response.code}) — unbinding")
+        // 403 НЕ трогаем: пауза биллинга и запреты сервера не отзывают ключ.
+        if (binding != null && response.code == 401) {
+            Log.w(TAG, "API key rejected (401) — unbinding")
             storage.clear()
         }
         return response

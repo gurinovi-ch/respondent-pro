@@ -59,6 +59,8 @@ data class DeviceParamsResponse(
     val surveyMode: String? = null,
     /** Путь веб-опроса (`/survey/form/<code>`); null — формы нет. */
     val surveyPath: String? = null,
+    /** Биллинг приостановлен: отправка отзывов в очередь, привязка сохраняется. */
+    val billingPaused: Boolean = false,
     val settings: DeviceParams,
 )
 

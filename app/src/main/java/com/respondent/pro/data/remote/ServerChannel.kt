@@ -2,6 +2,7 @@ package com.respondent.pro.data.remote
 
 import android.util.Log
 import androidx.annotation.VisibleForTesting
+import com.respondent.pro.cabinet.BillingPauseSignal
 import com.respondent.pro.cabinet.BindingStorage
 import com.respondent.pro.cabinet.CabinetApi
 import com.respondent.pro.cabinet.FeedbackPayload
@@ -18,7 +19,7 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
-enum class UploadOutcome { SYNCED, RETRY, REVOKED, REJECTED }
+enum class UploadOutcome { SYNCED, RETRY, REVOKED, REJECTED, PAUSED }
 
 /** Канал в C web (только для привязанного планшета). */
 interface ServerChannel : FeedbackChannel
@@ -28,6 +29,7 @@ class CabinetChannel @Inject constructor(
     private val cabinetApi: CabinetApi,
     private val feedbackDao: FeedbackDao,
     private val bindingStorage: BindingStorage,
+    private val pauseSignal: BillingPauseSignal,
 ) : ServerChannel {
 
     override suspend fun send(feedback: Feedback): Boolean =
@@ -56,12 +58,18 @@ class CabinetChannel @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: HttpException) {
-            if (e.code() == 401 || e.code() == 403) {
+            if (e.code() == 401) {
                 // Ключ отозван в кабинете: чистим локальное состояние,
                 // запись остаётся в очереди до следующей привязки
-                Log.w(TAG, "API key revoked (${e.code()}) — unbinding")
+                Log.w(TAG, "API key revoked (401) — unbinding")
                 bindingStorage.clear()
+                pauseSignal.set(false)
                 UploadOutcome.REVOKED
+            } else if (e.code() == 403 && isBillingPaused(e)) {
+                // Биллинг приостановлен: ключ и очередь целы, отзыв ждёт
+                Log.i(TAG, "Billing paused — feedback stays in queue")
+                pauseSignal.set(true)
+                UploadOutcome.PAUSED
             } else if (e.code() == 400 || e.code() == 422) {
                 // Сервер отверг payload: ретрай бессмысленен (рерайт мусора),
                 // но данные не теряем — помечаем ошибкой для UI и идём дальше
@@ -91,6 +99,7 @@ class CabinetChannel @Inject constructor(
                 UploadOutcome.REJECTED -> continue
                 UploadOutcome.RETRY -> break
                 UploadOutcome.REVOKED -> break
+                UploadOutcome.PAUSED -> break
             }
         }
         Log.d(TAG, "Drain: $sent of ${pending.size} uploaded")
@@ -124,6 +133,11 @@ class CabinetChannel @Inject constructor(
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
             .apply { timeZone = TimeZone.getTimeZone("UTC") }
             .format(Date(epochMs))
+
+    private fun isBillingPaused(e: HttpException): Boolean =
+        runCatching { e.response()?.errorBody()?.string() }
+            .getOrNull()
+            ?.contains("BILLING_PAUSED") == true
 
     companion object { private const val TAG = "CabinetChannel" }
 }
