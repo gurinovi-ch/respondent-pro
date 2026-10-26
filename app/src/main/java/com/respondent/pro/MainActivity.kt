@@ -34,6 +34,10 @@ import com.respondent.pro.ui.theme.RespondentProTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
+/** В паузе не удерживаем экран включённым: система гасит его по своему таймауту. */
+internal fun shouldKeepScreenOn(powered: Boolean, billingPaused: Boolean): Boolean =
+    powered && !billingPaused
+
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     companion object {
@@ -45,6 +49,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var kioskManager: KioskManager
+
+    private var powered = false
+    private var billingPaused = false
 
     /**
      * Экран горит только при подключённом питании: на батарее система сама
@@ -93,7 +100,7 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background
                     ) {
-                        NavGraph()
+                        NavGraph(onBillingPausedChange = ::setBillingPaused)
                     }
                 }
             }
@@ -117,14 +124,25 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    /** При подключённом питании — экран всегда активен, на батарее — снимаем флаг. */
+    /** При подключённом питании — экран активен, но в паузе флаг снимается. */
     private fun setKeepScreenOn(powered: Boolean) {
-        if (powered) {
+        this.powered = powered
+        applyKeepScreenOn()
+    }
+
+    private fun setBillingPaused(paused: Boolean) {
+        billingPaused = paused
+        applyKeepScreenOn()
+    }
+
+    private fun applyKeepScreenOn() {
+        val keep = shouldKeepScreenOn(powered, billingPaused)
+        if (keep) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         } else {
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
-        Log.i(TAG, "keepScreenOn=$powered")
+        Log.i(TAG, "keepScreenOn=$keep powered=$powered billingPaused=$billingPaused")
     }
 
     /**

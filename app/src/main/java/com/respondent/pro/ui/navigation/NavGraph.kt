@@ -40,7 +40,7 @@ sealed class Screen(val route: String) {
 }
 
 @Composable
-fun NavGraph() {
+fun NavGraph(onBillingPausedChange: (Boolean) -> Unit = {}) {
     val navController = rememberNavController()
     val feedbackViewModel: FeedbackViewModel = hiltViewModel()
     val commentViewModel: CommentViewModel = hiltViewModel()
@@ -102,6 +102,10 @@ fun NavGraph() {
             var pauseShowPin by remember { mutableStateOf(false) }
 
             if (billingPaused) {
+                DisposableEffect(Unit) {
+                    onBillingPausedChange(true)
+                    onDispose { onBillingPausedChange(false) }
+                }
                 LaunchedEffect(Unit) {
                     while (true) {
                         delay(60_000)
