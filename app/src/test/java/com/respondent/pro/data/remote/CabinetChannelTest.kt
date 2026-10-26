@@ -21,6 +21,7 @@ import kotlinx.coroutines.runBlocking
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -150,6 +151,17 @@ class CabinetChannelTest {
         val outcome = channel(api, FakeDao(), storage).upload(feedback())
         assertEquals(UploadOutcome.REVOKED, outcome)
         assertEquals(1, storage.clearCalls)
+    }
+
+    @Test fun `401 — сигнал паузы гасится`() = runBlocking {
+        val api = FakeApi { throw httpError(401) }
+        val storage = FakeStorage(bound)
+        val signal = BillingPauseSignal()
+        signal.set(true)
+        val ch = CabinetChannel(api, FakeDao(), storage, signal)
+        val outcome = ch.upload(feedback())
+        assertEquals(UploadOutcome.REVOKED, outcome)
+        assertFalse(signal.paused.value)
     }
 
     @Test fun `403 BILLING_PAUSED — PAUSED, storage сохраняется`() = runBlocking {

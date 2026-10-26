@@ -9,6 +9,7 @@ import com.respondent.pro.data.repository.FeedbackRepository
 import com.respondent.pro.data.repository.SettingsRepository
 import com.respondent.pro.data.repository.AppSettings
 import com.respondent.pro.cabinet.BillingPauseSignal
+import com.respondent.pro.cabinet.effectiveBillingPaused
 import com.respondent.pro.cabinet.BindingStorage
 import com.respondent.pro.cabinet.CabinetApi
 import com.respondent.pro.cabinet.DeviceParamsSync
@@ -57,11 +58,12 @@ class FeedbackViewModel @Inject constructor(
         .map { it != null }
         .stateIn(viewModelScope, SharingStarted.Eagerly, bindingStorage.read() != null)
 
-    /** Пауза биллинга: персист + мгновенный сигнал (до ближайшей записи в DataStore). */
+    /** Пауза биллинга: действует только при привязке (персист + мгновенный сигнал). */
     val billingPaused: StateFlow<Boolean> = combine(
+        isBound,
         settingsRepository.settings.map { it.billingPaused },
         pauseSignal.paused,
-    ) { persisted, signal -> persisted || signal }
+    ) { bound, persisted, signal -> effectiveBillingPaused(bound, persisted, signal) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     // --- Веб-опрос в WebView (срез 4) ---
@@ -134,6 +136,15 @@ class FeedbackViewModel @Inject constructor(
         standaloneReporter.start()
         viewModelScope.launch {
             settingsRepository.settings.collect { _settings.value = it }
+        }
+        // Отвязка (локальная или 401) гасит паузу: экран паузы не должен покрывать Free-режим.
+        viewModelScope.launch {
+            isBound.collect { bound ->
+                if (!bound) {
+                    settingsRepository.setBillingPaused(false)
+                    pauseSignal.set(false)
+                }
+            }
         }
         // Параметры устройства с сервера: один fetch при старте, best-effort (спека §6)
         viewModelScope.launch {

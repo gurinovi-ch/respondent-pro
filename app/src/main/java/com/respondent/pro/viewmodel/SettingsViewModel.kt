@@ -11,6 +11,7 @@ import com.respondent.pro.data.remote.TelegramApi
 import com.respondent.pro.data.repository.AppSettings
 import com.respondent.pro.data.repository.SettingsRepository
 import com.respondent.pro.cabinet.BindingStorage
+import com.respondent.pro.cabinet.BillingPauseSignal
 import com.respondent.pro.cabinet.CabinetApi
 import com.respondent.pro.cabinet.CabinetBinder
 import com.respondent.pro.cabinet.CabinetState
@@ -49,6 +50,7 @@ class SettingsViewModel @Inject constructor(
     private val kioskManager: KioskManager,
     private val cabinetApi: CabinetApi,
     private val bindingStorage: BindingStorage,
+    private val pauseSignal: BillingPauseSignal,
     @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
@@ -94,6 +96,7 @@ class SettingsViewModel @Inject constructor(
     private val cabinetBinder = CabinetBinder(bindingStorage, cabinetApi)
     private val deviceParamsSync = DeviceParamsSync(cabinetApi, bindingStorage) { p, mode, path, paused ->
         settingsRepository.applyDeviceParams(p, mode, path, paused)
+        pauseSignal.set(paused)
     }
     private val pairingFlow = PairingFlow(cabinetBinder) { deviceParamsSync.fetchAndApply() }
 

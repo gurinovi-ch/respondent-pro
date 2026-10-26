@@ -12,3 +12,10 @@ class BillingPauseSignal @Inject constructor() {
     val paused: StateFlow<Boolean> = _paused
     fun set(value: Boolean) { _paused.value = value }
 }
+
+/**
+ * Пауза биллинга действует, только пока планшет привязан к кабинету:
+ * локальная отвязка или 401 не должны оставлять экран паузы поверх Free-режима.
+ */
+fun effectiveBillingPaused(isBound: Boolean, persisted: Boolean, signal: Boolean): Boolean =
+    isBound && (persisted || signal)
