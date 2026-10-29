@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
+import android.os.PowerManager
 import android.content.res.Configuration
 import android.util.Log
 import androidx.core.content.ContextCompat
@@ -38,10 +39,20 @@ import javax.inject.Inject
 internal fun shouldKeepScreenOn(powered: Boolean, billingPaused: Boolean): Boolean =
     powered && !billingPaused
 
+/**
+ * Погасший дисплей зажигаем только в момент перехода в «держать включённым»:
+ * FLAG_KEEP_SCREEN_ON не зажигает экран, а лишь не даёт ему погаснуть.
+ */
+internal fun shouldWakeScreen(wasKeeping: Boolean, keep: Boolean, interactive: Boolean): Boolean =
+    !wasKeeping && keep && !interactive
+
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     companion object {
         private const val TAG = "MainActivity"
+
+        /** Запас на пробуждение и onResume; дальше экран держит FLAG_KEEP_SCREEN_ON. */
+        private const val WAKE_LOCK_TIMEOUT_MS = 10_000L
     }
 
     @Inject
@@ -52,6 +63,9 @@ class MainActivity : ComponentActivity() {
 
     private var powered = false
     private var billingPaused = false
+    private var keepScreenOn = false
+
+    private val powerManager by lazy { getSystemService(PowerManager::class.java) }
 
     /**
      * Экран горит только при подключённом питании: на батарее система сама
@@ -142,7 +156,26 @@ class MainActivity : ComponentActivity() {
         } else {
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
+        if (shouldWakeScreen(keepScreenOn, keep, powerManager.isInteractive)) {
+            wakeScreen()
+        }
+        keepScreenOn = keep
         Log.i(TAG, "keepScreenOn=$keep powered=$powered billingPaused=$billingPaused")
+    }
+
+    /**
+     * Зажечь погашенный дисплей: после снятия паузы киоск должен вернуться сам,
+     * без касания. SCREEN_BRIGHT_WAKE_LOCK с ACQUIRE_CAUSES_WAKEUP — единственный
+     * доступный обычному приложению способ разбудить экран (API помечен deprecated,
+     * но работает; замена — только системные разрешения).
+     */
+    @Suppress("DEPRECATION")
+    private fun wakeScreen() {
+        powerManager.newWakeLock(
+            PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+            "RespondentPro:wakeOnUnpause",
+        ).acquire(WAKE_LOCK_TIMEOUT_MS)
+        Log.i(TAG, "wakeScreen: display was off")
     }
 
     /**
